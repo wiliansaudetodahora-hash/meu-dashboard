@@ -11,6 +11,140 @@ const BUYER_MAP = {
   'CS': 'Cicero Severo',
 };
 
+const PerformancePorConta = ({ data }) => {
+    const contas = useMemo(() => {
+        const map = {};
+        data.forEach(d => {
+            const key = d.accountCode || 'N/A';
+            if (!map[key]) {
+                map[key] = { gastos: 0, receita: 0, lucro: 0, campanhas: 0, buyers: {} };
+            }
+            map[key].gastos += d.gastos;
+            map[key].receita += d.receita;
+            map[key].lucro += d.lucro;
+            map[key].campanhas += 1;
+            const buyer = d.mediaBuyer || d.mediaBuyerCode;
+            if (!map[key].buyers[buyer]) map[key].buyers[buyer] = { gastos: 0, receita: 0, lucro: 0, campanhas: 0 };
+            map[key].buyers[buyer].gastos += d.gastos;
+            map[key].buyers[buyer].receita += d.receita;
+            map[key].buyers[buyer].lucro += d.lucro;
+            map[key].buyers[buyer].campanhas += 1;
+        });
+        return Object.entries(map).map(([account, stats]) => ({ account, ...stats }));
+    }, [data]);
+
+    return (
+        <div className="space-y-4">
+            {contas.map(c => (
+                <div key={c.account} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className="font-bold text-lg text-gray-800">{c.account}</h3>
+                        <div className="text-sm text-gray-600">{c.campanhas} campanhas</div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
+                        <div><span className="text-gray-500">Gasto:</span> <span className="font-semibold">R$ {c.gastos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                        <div><span className="text-gray-500">Receita:</span> <span className="font-semibold">R$ {c.receita.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                        <div><span className="text-gray-500">Lucro:</span> <span className={`font-bold ${c.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {c.lucro.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                        <div><span className="text-gray-500">ROI:</span> <span className="font-bold">{c.gastos > 0 ? ((c.lucro / c.gastos) * 100).toFixed(1) : '0.0'}%</span></div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="bg-gray-50 text-gray-600">
+                                    <th className="p-2 text-left">Media Buyer</th>
+                                    <th className="p-2 text-right">Campanhas</th>
+                                    <th className="p-2 text-right">Gasto</th>
+                                    <th className="p-2 text-right">Receita</th>
+                                    <th className="p-2 text-right">Lucro</th>
+                                    <th className="p-2 text-right">ROI</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Object.entries(c.buyers).map(([buyer, b]) => (
+                                    <tr key={buyer} className="border-t">
+                                        <td className="p-2">{buyer}</td>
+                                        <td className="p-2 text-right">{b.campanhas}</td>
+                                        <td className="p-2 text-right">R$ {b.gastos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                        <td className="p-2 text-right">R$ {b.receita.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                        <td className={`p-2 text-right ${b.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {b.lucro.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                        <td className="p-2 text-right">{b.gastos > 0 ? ((b.lucro / b.gastos) * 100).toFixed(1) : '0.0'}%</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const PerformancePorSite = ({ data }) => {
+    const sites = useMemo(() => {
+        const map = {};
+        data.forEach(d => {
+            const key = d.site || 'N/A';
+            if (!map[key]) map[key] = { gastos: 0, receita: 0, lucro: 0, campanhas: 0, buyers: {} };
+            map[key].gastos += d.gastos;
+            map[key].receita += d.receita;
+            map[key].lucro += d.lucro;
+            map[key].campanhas += 1;
+            const buyer = d.mediaBuyer || d.mediaBuyerCode;
+            if (!map[key].buyers[buyer]) map[key].buyers[buyer] = { gastos: 0, receita: 0, lucro: 0, campanhas: 0 };
+            map[key].buyers[buyer].gastos += d.gastos;
+            map[key].buyers[buyer].receita += d.receita;
+            map[key].buyers[buyer].lucro += d.lucro;
+            map[key].buyers[buyer].campanhas += 1;
+        });
+        return Object.entries(map).map(([site, stats]) => ({ site, ...stats }));
+    }, [data]);
+
+    return (
+        <div className="space-y-4">
+            {sites.map(s => (
+                <div key={s.site} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className="font-bold text-lg text-gray-800">{PLATFORM_MAP[s.site] || s.site}</h3>
+                        <div className="text-sm text-gray-600">{s.campanhas} campanhas</div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
+                        <div><span className="text-gray-500">Gasto:</span> <span className="font-semibold">R$ {s.gastos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                        <div><span className="text-gray-500">Receita:</span> <span className="font-semibold">R$ {s.receita.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                        <div><span className="text-gray-500">Lucro:</span> <span className={`font-bold ${s.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {s.lucro.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                        <div><span className="text-gray-500">ROI:</span> <span className="font-bold">{s.gastos > 0 ? ((s.lucro / s.gastos) * 100).toFixed(1) : '0.0'}%</span></div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="bg-gray-50 text-gray-600">
+                                    <th className="p-2 text-left">Media Buyer</th>
+                                    <th className="p-2 text-right">Campanhas</th>
+                                    <th className="p-2 text-right">Gasto</th>
+                                    <th className="p-2 text-right">Receita</th>
+                                    <th className="p-2 text-right">Lucro</th>
+                                    <th className="p-2 text-right">ROI</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Object.entries(s.buyers).map(([buyer, b]) => (
+                                    <tr key={buyer} className="border-t">
+                                        <td className="p-2">{buyer}</td>
+                                        <td className="p-2 text-right">{b.campanhas}</td>
+                                        <td className="p-2 text-right">R$ {b.gastos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                        <td className="p-2 text-right">R$ {b.receita.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                        <td className={`p-2 text-right ${b.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {b.lucro.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                        <td className="p-2 text-right">{b.gastos > 0 ? ((b.lucro / b.gastos) * 100).toFixed(1) : '0.0'}%</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 const PLATFORM_MAP = {
   'DOR': 'Site Principal (DOR)',
   'SDM': 'Site Direto (SDM)',
@@ -43,22 +177,29 @@ const KpiCard = ({ icon: Icon, title, value, color, isCurrency = true }) => (
 
 // --- ABAS DO DASHBOARD ---
 
-const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers }) => {
+const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, importReferenceDate }) => {
     const trendData = useMemo(() => {
         if (data.length === 0) return [];
         const sorted = [...data].sort((a, b) => a.data - b.data);
         const daily = {};
         sorted.forEach(d => {
-            const day = d.data.toISOString().split('T')[0];
-            if (!daily[day]) daily[day] = { receita: 0, gasto: 0 };
-            daily[day].receita += d.receita;
-            daily[day].gasto += d.gastos;
+            const y = d.data.getFullYear();
+            const m = String(d.data.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.data.getDate()).padStart(2, '0');
+            const dayKey = `${y}-${m}-${dd}`; // chave LOCAL YYYY-MM-DD
+            if (!daily[dayKey]) daily[dayKey] = { receita: 0, gasto: 0 };
+            daily[dayKey].receita += d.receita;
+            daily[dayKey].gasto += d.gastos;
         });
-        return Object.entries(daily).map(([date, values]) => ({
-            date: new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-            Receita: values.receita,
-            Gasto: values.gasto,
-        }));
+        return Object.entries(daily).map(([dateKey, values]) => {
+            const [yy, mm, dd] = dateKey.split('-').map(n => parseInt(n, 10));
+            const localDate = new Date(yy, mm - 1, dd);
+            return {
+                date: localDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                Receita: values.receita,
+                Gasto: values.gasto,
+            };
+        });
     }, [data]);
 
     const receitaPorSerie = useMemo(() => {
@@ -73,18 +214,240 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers }) =
             .sort((a, b) => b.value - a.value);
     }, [data]);
 
+    // Sistema de recomendação inteligente
+    const smartRecommendations = useMemo(() => {
+        if (data.length === 0) return [];
+        
+        const now = new Date();
+        const last7Days = new Date(now);
+        last7Days.setDate(now.getDate() - 7);
+        const last30Days = new Date(now);
+        last30Days.setDate(now.getDate() - 30);
+        
+        // Analisar performance das séries nos últimos 7 e 30 dias
+        const seriesAnalysis = {};
+        
+        data.forEach(d => {
+            const itemDate = new Date(d.data);
+            if (!seriesAnalysis[d.serie]) {
+                seriesAnalysis[d.serie] = {
+                    recent: { gastos: 0, receita: 0, lucro: 0, campanhas: 0, roiList: [] },
+                    historical: { gastos: 0, receita: 0, lucro: 0, campanhas: 0, roiList: [] }
+                };
+            }
+            
+            const roi = d.gastos > 0 ? (d.lucro / d.gastos) * 100 : 0;
+            
+            if (itemDate >= last7Days) {
+                seriesAnalysis[d.serie].recent.gastos += d.gastos;
+                seriesAnalysis[d.serie].recent.receita += d.receita;
+                seriesAnalysis[d.serie].recent.lucro += d.lucro;
+                seriesAnalysis[d.serie].recent.campanhas += 1;
+                seriesAnalysis[d.serie].recent.roiList.push(roi);
+            }
+            
+            if (itemDate >= last30Days) {
+                seriesAnalysis[d.serie].historical.gastos += d.gastos;
+                seriesAnalysis[d.serie].historical.receita += d.receita;
+                seriesAnalysis[d.serie].historical.lucro += d.lucro;
+                seriesAnalysis[d.serie].historical.campanhas += 1;
+                seriesAnalysis[d.serie].historical.roiList.push(roi);
+            }
+        });
+        
+        // Calcular score de recomendação
+        const recommendations = Object.entries(seriesAnalysis)
+            .map(([serie, analysis]) => {
+                const recentROI = analysis.recent.roiList.length > 0 
+                    ? analysis.recent.roiList.reduce((a, b) => a + b, 0) / analysis.recent.roiList.length 
+                    : 0;
+                const historicalROI = analysis.historical.roiList.length > 0 
+                    ? analysis.historical.roiList.reduce((a, b) => a + b, 0) / analysis.historical.roiList.length 
+                    : 0;
+                
+                const recentLucro = analysis.recent.lucro;
+                const trend = recentROI - historicalROI; // Tendência de melhora
+                const consistency = analysis.recent.campanhas >= 3 ? 1 : 0.5; // Consistência de dados
+                const profitability = recentLucro > 0 ? 1 : 0; // Lucratividade
+                
+                // Score composto: ROI recente (40%) + Tendência (30%) + Lucro (20%) + Consistência (10%)
+                const score = (recentROI * 0.4) + (trend * 0.3) + (recentLucro * 0.0001 * 0.2) + (consistency * 10);
+                
+                return {
+                    serie,
+                    score,
+                    recentROI,
+                    historicalROI,
+                    trend,
+                    recentLucro,
+                    recentCampanhas: analysis.recent.campanhas,
+                    confidence: analysis.recent.campanhas >= 5 ? 'Alta' : analysis.recent.campanhas >= 3 ? 'Média' : 'Baixa'
+                };
+            })
+            .filter(r => r.recentCampanhas > 0) // Apenas séries com atividade recente
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 4); // Top 4 recomendações
+            
+        return recommendations;
+    }, [data]);
+
     return (
+        <>
         <div>
+            {importReferenceDate && (
+                <div className="mb-4">
+                    <div className="bg-emerald-100 text-emerald-900 px-4 py-2 rounded-md inline-flex items-center">
+                        <CalendarIcon size={16} className="mr-2"/>
+                        <span>Dados carregados de {new Date().toLocaleDateString('pt-BR')}</span>
+                    </div>
+                </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                <KpiCard icon={DollarSign} title="Receita Total" value={kpis.receita} color="bg-green-500" />
+                <KpiCard icon={Target} title="ROI Total" value={`${kpis.roi.toFixed(2)}%`} color="bg-purple-500" isCurrency={false} />
                 <KpiCard icon={TrendingDown} title="Gasto Total" value={kpis.gastos} color="bg-red-500" />
-                <KpiCard icon={TrendingUp} title="Lucro Total" value={kpis.lucro} color="bg-blue-500" />
-                <KpiCard icon={Target} title="ROI Geral" value={`${kpis.roi.toFixed(1)}%`} color="bg-purple-500" isCurrency={false} />
+                <KpiCard icon={DollarSign} title="Ganho Total" value={kpis.receita} color="bg-green-500" />
+                <KpiCard icon={TrendingUp} title="Lucro/Prejuízo" value={kpis.lucro} color="bg-blue-500" />
             </div>
-            <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-6">
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                    <p className="text-sm text-gray-500">Total de Campanhas</p>
+                    <p className="text-2xl font-bold">{kpis.totalCampanhas}</p>
+                    <div className="mt-3 text-xs">
+                        <div className="flex justify-between text-green-600"><span>ROI Positivo:</span><span className="font-semibold">{kpis.roiPositivos}</span></div>
+                        <div className="flex justify-between text-red-600"><span>ROI Negativo:</span><span className="font-semibold">{kpis.roiNegativos}</span></div>
+                        <div className="flex justify-between text-gray-700"><span>ROI Médio:</span><span className="font-semibold">{kpis.roiMedio.toFixed(2)}%</span></div>
+                    </div>
+                </div>
+                <KpiCard icon={DollarSign} title="CPC Médio" value={kpis.cpcMedio} color="bg-amber-500" />
+                <div className="bg-white p-4 rounded-lg shadow-sm flex items-center">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-indigo-500`}>
+                        <BarChart2 className="text-white" size={24} />
+                    </div>
+                    <div className="ml-4">
+                        <p className="text-sm text-gray-500">CTR Médio</p>
+                        <p className="text-xl font-bold text-gray-800">{kpis.ctrMedio.toFixed(2)}%</p>
+                    </div>
+                </div>
+                <KpiCard icon={BarChart2} title="eCPM Médio" value={kpis.ecpmMedio} color="bg-fuchsia-500" />
+                <div className="bg-white p-4 rounded-lg shadow-sm flex items-center">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-sky-500`}>
+                        <Users className="text-white" size={24} />
+                    </div>
+                    <div className="ml-4">
+                        <p className="text-sm text-gray-500">Media Buyers Ativos</p>
+                        <p className="text-xl font-bold text-gray-800">{new Set(data.map(d=>d.mediaBuyer)).size}</p>
+                    </div>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow-sm flex items-center">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-emerald-500`}>
+                        <Tv className="text-white" size={24} />
+                    </div>
+                    <div className="ml-4">
+                        <p className="text-sm text-gray-500">Séries</p>
+                        <p className="text-xl font-bold text-gray-800">{new Set(data.map(d=>d.serie)).size}</p>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Sistema de Recomendação Inteligente */}
+            {smartRecommendations.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl shadow-sm border border-purple-200 p-6 mb-6">
+                    <div className="flex items-center mb-4">
+                        <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-full p-2 mr-3">
+                            <AlertCircle className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-800">🧠 Recomendações Inteligentes do Dia</h3>
+                            <p className="text-sm text-gray-600">Análise baseada em performance dos últimos 7 dias vs. histórico de 30 dias</p>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {smartRecommendations.map((rec, index) => {
+                            const getRecommendationIcon = (idx) => {
+                                if (idx === 0) return { icon: '🎯', class: 'from-green-400 to-emerald-500', text: 'FOCO MÁXIMO' };
+                                if (idx === 1) return { icon: '⭐', class: 'from-blue-400 to-indigo-500', text: 'ALTA PRIORIDADE' };
+                                if (idx === 2) return { icon: '💡', class: 'from-yellow-400 to-orange-500', text: 'BOA OPÇÃO' };
+                                return { icon: '📈', class: 'from-purple-400 to-pink-500', text: 'CONSIDERAR' };
+                            };
+                            
+                            const recIcon = getRecommendationIcon(index);
+                            const trendIcon = rec.trend > 0 ? '📈' : rec.trend < 0 ? '📉' : '➡️';
+                            const trendColor = rec.trend > 0 ? 'text-green-600' : rec.trend < 0 ? 'text-red-600' : 'text-gray-600';
+                            
+                            return (
+                                <div key={rec.serie} className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-lg transition-shadow">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center space-x-2">
+                                            <div className={`bg-gradient-to-r ${recIcon.class} rounded-full w-8 h-8 flex items-center justify-center text-white text-sm font-bold`}>
+                                                {recIcon.icon}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-semibold text-gray-800 text-sm">{rec.serie}</h4>
+                                                <p className="text-xs text-gray-500">{recIcon.text}</p>
+                                            </div>
+                                        </div>
+                                        <div className={`text-xs px-2 py-1 rounded-full ${
+                                            rec.confidence === 'Alta' ? 'bg-green-100 text-green-700' :
+                                            rec.confidence === 'Média' ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-gray-100 text-gray-700'
+                                        }`}>
+                                            {rec.confidence}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-2 text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">ROI 7 dias:</span>
+                                            <span className={`font-semibold ${rec.recentROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {rec.recentROI.toFixed(1)}%
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">Tendência:</span>
+                                            <span className={`font-semibold ${trendColor} flex items-center`}>
+                                                {trendIcon} {rec.trend > 0 ? '+' : ''}{rec.trend.toFixed(1)}%
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">Lucro recente:</span>
+                                            <span className={`font-semibold ${rec.recentLucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                R$ {Math.abs(rec.recentLucro).toLocaleString('pt-BR', {maximumFractionDigits: 0})}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">Campanhas:</span>
+                                            <span className="font-semibold text-gray-700">{rec.recentCampanhas}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="mt-3 pt-2 border-t border-gray-100">
+                                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                            <div 
+                                                className={`bg-gradient-to-r ${recIcon.class} h-1.5 rounded-full transition-all duration-300`}
+                                                style={{ width: `${Math.min(100, Math.max(10, rec.score + 50))}%` }}
+                                            ></div>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1 text-center">Score: {rec.score.toFixed(1)}</p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    
+                    <div className="mt-4 p-3 bg-white/50 rounded-lg border border-purple-100">
+                        <p className="text-xs text-gray-600 flex items-center">
+                            <CheckCircle className="w-3 h-3 mr-1 text-purple-500" />
+                            <strong>Como funciona:</strong> O sistema analisa ROI recente, tendência de melhora, lucratividade e consistência de dados para sugerir as melhores séries para focar hoje.
+                        </p>
+                    </div>
+                </div>
+            )}
+            
+            <div className="bg-white p-4 rounded-lg shadow-sm mb-6 md:static sticky top-0 z-20">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-gray-700 flex items-center"><Filter size={18} className="mr-2"/>Filtros e Controles</h3>
-                    <button className="text-sm bg-blue-500 text-white px-3 py-1.5 rounded-md hover:bg-blue-600 flex items-center">
+                    <button className="text-sm bg-blue-500 text-white px-4 py-2 md:px-3 md:py-1.5 rounded-md hover:bg-blue-600 flex items-center">
                         <Download size={14} className="mr-1"/> Exportar
                     </button>
                 </div>
@@ -94,7 +457,7 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers }) =
                         <select 
                             value={filters.mediaBuyer} 
                             onChange={(e) => setFilters({...filters, mediaBuyer: e.target.value})} 
-                            className="w-full border rounded-md p-1.5 text-sm mt-1"
+                            className="w-full border rounded-md p-2 md:p-1.5 text-sm mt-1"
                         >
                             <option value="all">Todos os media buyers</option>
                             {allBuyers.map(b => <option key={b} value={b}>{b}</option>)}
@@ -112,6 +475,18 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers }) =
                         </select>
                     </div>
                     <div>
+                        <label className="text-sm text-gray-600">Site</label>
+                        <select 
+                            value={filters.site} 
+                            onChange={(e) => setFilters({...filters, site: e.target.value})} 
+                            className="w-full border rounded-md p-1.5 text-sm mt-1"
+                        >
+                            <option value="all">Todos os sites</option>
+                            <option value="DOR">Site Principal (DOR)</option>
+                            <option value="SDM">Site Direto (SDM)</option>
+                        </select>
+                    </div>
+                    <div>
                         <label className="text-sm text-gray-600">Período</label>
                         <div className="flex flex-wrap gap-2 mt-1">
                             {[
@@ -123,38 +498,53 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers }) =
                             ].map(opt => (
                                 <button
                                     key={opt.key}
-                                    onClick={() => setFilters({...filters, dateRange: opt.key})}
+                                    onClick={() => {
+                                        if (opt.key === 'today') {
+                                            // Usar sempre a data atual local para "Hoje"
+                                            const now = new Date();
+                                            const y = now.getFullYear();
+                                            const m = String(now.getMonth() + 1).padStart(2, '0');
+                                            const d = String(now.getDate()).padStart(2, '0');
+                                            const iso = `${y}-${m}-${d}`;
+                                            setFilters({ ...filters, dateRange: 'today', startDate: iso, endDate: iso });
+                                        } else {
+                                            setFilters({ ...filters, dateRange: opt.key });
+                                        }
+                                    }}
                                     className={`text-xs px-2 py-1 rounded border ${filters.dateRange === opt.key ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
                                 >
                                     {opt.label}
                                 </button>
                             ))}
                         </div>
-                        <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="mt-2">
+                            <label className="text-xs text-gray-600 block mb-1">Selecionar data específica:</label>
                             <input
                                 type="date"
                                 value={filters.startDate}
-                                onChange={(e) => setFilters({...filters, startDate: e.target.value})}
+                                onChange={(e) => {
+                                    const selectedDate = e.target.value;
+                                    if (selectedDate) {
+                                        setFilters({ 
+                                            ...filters, 
+                                            dateRange: 'custom', 
+                                            startDate: selectedDate, 
+                                            endDate: selectedDate 
+                                        });
+                                    } else {
+                                        setFilters({ 
+                                            ...filters, 
+                                            dateRange: 'all', 
+                                            startDate: '', 
+                                            endDate: '' 
+                                        });
+                                    }
+                                }}
                                 className="w-full border rounded-md p-1.5 text-sm"
-                            />
-                            <input
-                                type="date"
-                                value={filters.endDate}
-                                onChange={(e) => setFilters({...filters, endDate: e.target.value})}
-                                className="w-full border rounded-md p-1.5 text-sm"
+                                placeholder="Escolha uma data"
                             />
                         </div>
                         <div className="flex gap-2 mt-2">
-                            <button
-                                onClick={() => {
-                                    if (filters.startDate && filters.endDate) {
-                                        setFilters({...filters, dateRange: 'custom'});
-                                    }
-                                }}
-                                className="text-xs px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600"
-                            >
-                                Aplicar intervalo
-                            </button>
                             <button
                                 onClick={() => setFilters({...filters, dateRange: 'all', startDate: '', endDate: ''})}
                                 className="text-xs px-2 py-1 rounded border bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
@@ -195,10 +585,14 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers }) =
                 </div>
             </div>
         </div>
+        </>
     );
 };
 
 const MediaBuyers = ({ data }) => {
+    const [expandedBuyer, setExpandedBuyer] = useState(null);
+    const [sortBy, setSortBy] = useState('lucro'); // lucro, roi, receita, campanhas
+
     const buyerPerformance = useMemo(() => {
         if (data.length === 0) return [];
         const buyers = {};
@@ -212,63 +606,329 @@ const MediaBuyers = ({ data }) => {
             buyers[d.mediaBuyer].receita += d.receita;
             buyers[d.mediaBuyer].lucro += d.lucro;
             buyers[d.mediaBuyer].campanhas += 1;
-            if(!buyers[d.mediaBuyer].series[d.serieCode]) buyers[d.mediaBuyer].series[d.serieCode] = 0;
+            if (!buyers[d.mediaBuyer].series[d.serieCode]) buyers[d.mediaBuyer].series[d.serieCode] = 0;
             buyers[d.mediaBuyer].series[d.serieCode] += d.lucro;
         });
-
-        return Object.entries(buyers).map(([name, stats]) => {
+        
+        const result = Object.entries(buyers).map(([name, stats]) => {
             const topSerieCode = Object.keys(stats.series).length > 0 ? Object.keys(stats.series).reduce((a, b) => stats.series[a] > stats.series[b] ? a : b, 'N/A') : 'N/A';
+            const roi = stats.gastos > 0 ? (stats.lucro / stats.gastos) * 100 : 0;
+            const eficiencia = roi > 0 ? Math.min(100, roi * 0.8 + 20) : Math.max(0, roi + 50);
+            
+            // Debug: log valores para verificar divergência
+            console.log(`DEBUG ROI - ${name}: Lucro=R$${stats.lucro.toFixed(2)}, Gasto=R$${stats.gastos.toFixed(2)}, ROI=${roi.toFixed(2)}%`);
+            console.log(`  Campanhas incluídas: ${stats.campanhas}`);
+            
             return {
                 name,
                 code: stats.code,
                 gastoTotal: stats.gastos,
                 receita: stats.receita,
-                roi: stats.gastos > 0 ? (stats.lucro / stats.gastos) * 100 : 0,
+                roi,
                 lucro: stats.lucro,
                 topSerie: topSerieCode,
                 campanhas: stats.campanhas,
-                eficiencia: Math.random() * 70 + 20
+                eficiencia
             };
         });
+        
+        // Ordenar por critério selecionado
+        result.sort((a, b) => {
+            switch(sortBy) {
+                case 'roi': return b.roi - a.roi;
+                case 'receita': return b.receita - a.receita;
+                case 'campanhas': return b.campanhas - a.campanhas;
+                default: return b.lucro - a.lucro;
+            }
+        });
+        
+        return result;
+    }, [data, sortBy]);
+
+    const getTop10ForBuyer = useMemo(() => {
+        const map = {};
+        data.forEach(d => {
+            if (!map[d.mediaBuyer]) map[d.mediaBuyer] = [];
+            const roi = d.gastos > 0 ? (d.lucro / d.gastos) * 100 : 0;
+            map[d.mediaBuyer].push({ ...d, roiCalc: roi });
+        });
+        Object.keys(map).forEach(k => {
+            map[k].sort((a, b) => (b.lucro - a.lucro) || (b.roiCalc - a.roiCalc));
+            map[k] = map[k].slice(0, 10);
+        });
+        return map;
+    }, [data]);
+
+    const TopTenSummary = ({ items }) => {
+        const agg = items.reduce((acc, it) => {
+            acc.gastos += it.gastos; acc.receita += it.receita; acc.lucro += it.lucro; acc.roiList.push(it.roiCalc);
+            return acc;
+        }, { gastos: 0, receita: 0, lucro: 0, roiList: [] });
+        const roiMedio = agg.roiList.length ? (agg.roiList.reduce((a,b)=>a+b,0) / agg.roiList.length) : 0;
+        
+        return (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-4 border border-blue-100">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <Target className="w-4 h-4 mr-2 text-blue-600" />
+                    Resumo Top 10 Campanhas
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="text-center">
+                        <div className="text-lg font-bold text-gray-800">{items.length}</div>
+                        <div className="text-xs text-gray-500">Campanhas</div>
+                    </div>
+                    <div className="text-center">
+                        <div className={`text-lg font-bold ${roiMedio >= 0 ? 'text-green-600' : 'text-red-600'}`}>{roiMedio.toFixed(1)}%</div>
+                        <div className="text-xs text-gray-500">ROI Médio</div>
+                    </div>
+                    <div className="text-center">
+                        <div className={`text-lg font-bold ${agg.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {Math.abs(agg.lucro).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                        <div className="text-xs text-gray-500">Lucro Total</div>
+                    </div>
+                    <div className="text-center">
+                        <div className="text-lg font-bold text-gray-800">R$ {agg.receita.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                        <div className="text-xs text-gray-500">Receita Total</div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const getRankIcon = (index) => {
+        if (index === 0) return <span className="text-yellow-500 font-bold">🥇</span>;
+        if (index === 1) return <span className="text-gray-400 font-bold">🥈</span>;
+        if (index === 2) return <span className="text-amber-600 font-bold">🥉</span>;
+        return <span className="text-gray-400 font-bold">#{index + 1}</span>;
+    };
+
+    // Calcular campanhas da semana
+    const weeklyTopCampaigns = useMemo(() => {
+        const now = new Date();
+        const weekAgo = new Date(now);
+        weekAgo.setDate(now.getDate() - 7);
+        
+        const weeklyData = data.filter(d => {
+            const itemDate = new Date(d.data);
+            return itemDate >= weekAgo && itemDate <= now;
+        });
+        
+        return weeklyData
+            .map(d => ({
+                ...d,
+                roiCalc: d.gastos > 0 ? (d.lucro / d.gastos) * 100 : 0
+            }))
+            .sort((a, b) => (b.lucro - a.lucro) || (b.roiCalc - a.roiCalc))
+            .slice(0, 10);
     }, [data]);
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {buyerPerformance.map(buyer => (
-                <div key={buyer.name} className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h3 className="font-bold text-lg text-gray-800">{buyer.name}</h3>
-                            <p className="text-sm text-gray-500">{buyer.code}</p>
-                        </div>
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${buyer.eficiencia > 50 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {buyer.eficiencia.toFixed(0)}% Eficiência
-                        </span>
+        <div className="space-y-6">
+            {/* Header com controles */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-800 flex items-center">
+                            <Users className="w-6 h-6 mr-2 text-blue-600" />
+                            Performance dos Media Buyers
+                        </h2>
+                        <p className="text-sm text-gray-500 mt-1">Análise detalhada por profissional de mídia</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-y-4 gap-x-2 my-4">
-                        <div>
-                            <p className="text-sm text-gray-500">Gasto Total</p>
-                            <p className="font-bold text-gray-800">R$ {buyer.gastoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-500">Receita</p>
-                            <p className="font-bold text-gray-800">R$ {buyer.receita.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-500">ROI</p>
-                            <p className={`font-bold ${buyer.roi > 0 ? 'text-green-600' : 'text-red-600'}`}>{buyer.roi.toFixed(1)}%</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-500">Lucro</p>
-                            <p className={`font-bold ${buyer.lucro > 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {buyer.lucro.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
-                        </div>
-                    </div>
-                    <div className="border-t pt-3 text-sm text-gray-600 flex justify-between">
-                        <span><span className="font-semibold">Top Série:</span> {buyer.topSerie}</span>
-                        <span>{buyer.campanhas} campanhas</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">Ordenar por:</span>
+                        <select 
+                            value={sortBy} 
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                            <option value="lucro">Lucro</option>
+                            <option value="roi">ROI</option>
+                            <option value="receita">Receita</option>
+                            <option value="campanhas">Campanhas</option>
+                        </select>
                     </div>
                 </div>
-            ))}
+            </div>
+
+            {/* Top Campanhas da Semana */}
+            {weeklyTopCampaigns.length > 0 && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-center mb-6">
+                        <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full p-2 mr-3">
+                            <Target className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-800">🏆 Top 10 Campanhas da Semana</h3>
+                            <p className="text-sm text-gray-500">Melhores performances dos últimos 7 dias</p>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {weeklyTopCampaigns.map((campaign, index) => {
+                            const getRankBadge = (idx) => {
+                                if (idx === 0) return { icon: '🥇', class: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
+                                if (idx === 1) return { icon: '🥈', class: 'bg-gray-100 text-gray-800 border-gray-200' };
+                                if (idx === 2) return { icon: '🥉', class: 'bg-amber-100 text-amber-800 border-amber-200' };
+                                return { icon: `#${idx + 1}`, class: 'bg-blue-100 text-blue-800 border-blue-200' };
+                            };
+                            
+                            const rankBadge = getRankBadge(index);
+                            
+                            return (
+                                <div key={campaign.id} className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center space-x-3">
+                                            <span className={`text-sm font-bold px-2 py-1 rounded-full border ${rankBadge.class}`}>
+                                                {rankBadge.icon}
+                                            </span>
+                                            <div>
+                                                <h4 className="font-semibold text-gray-800 text-sm truncate">{campaign.id}</h4>
+                                                <p className="text-xs text-gray-500">{campaign.mediaBuyer} • {campaign.serie}</p>
+                                            </div>
+                                        </div>
+                                        <span className={`text-xs px-2 py-1 rounded-full ${campaign.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                            {campaign.status}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-3 gap-3 text-xs">
+                                        <div className="text-center bg-white rounded-md p-2">
+                                            <div className={`font-bold ${campaign.roiCalc >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {campaign.roiCalc.toFixed(1)}%
+                                            </div>
+                                            <div className="text-gray-500">ROI</div>
+                                        </div>
+                                        <div className="text-center bg-white rounded-md p-2">
+                                            <div className={`font-bold ${campaign.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                R$ {Math.abs(campaign.lucro).toLocaleString('pt-BR', {maximumFractionDigits: 0})}
+                                            </div>
+                                            <div className="text-gray-500">Lucro</div>
+                                        </div>
+                                        <div className="text-center bg-white rounded-md p-2">
+                                            <div className="font-bold text-gray-700">
+                                                R$ {campaign.receita.toLocaleString('pt-BR', {maximumFractionDigits: 0})}
+                                            </div>
+                                            <div className="text-gray-500">Receita</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="mt-3 pt-2 border-t border-gray-200">
+                                        <div className="flex justify-between text-xs text-gray-500">
+                                            <span>Investimento: R$ {campaign.gastos.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</span>
+                                            <span>Site: {campaign.site}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Cards dos Media Buyers */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {buyerPerformance.map((buyer, index) => (
+                    <div key={buyer.name} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+                        {/* Header do card */}
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-100">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    {getRankIcon(index)}
+                                    <div>
+                                        <h3 className="font-bold text-lg text-gray-800">{buyer.name}</h3>
+                                        <p className="text-sm text-gray-500">{buyer.code} • {buyer.campanhas} campanhas</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className={`text-sm font-semibold px-2 py-1 rounded-full ${buyer.eficiencia >= 60 ? 'bg-green-100 text-green-700' : buyer.eficiencia >= 30 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                        {buyer.eficiencia.toFixed(0)}% Eficiência
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Métricas principais */}
+                        <div className="p-6">
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                    <div className="flex items-center justify-between">
+                                        <TrendingUp className="w-4 h-4 text-green-600" />
+                                        <span className={`text-lg font-bold ${buyer.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            R$ {Math.abs(buyer.lucro).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">Lucro Total</p>
+                                </div>
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                    <div className="flex items-center justify-between">
+                                        <Target className="w-4 h-4 text-blue-600" />
+                                        <span className={`text-lg font-bold ${buyer.roi >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {buyer.roi.toFixed(1)}%
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">ROI</p>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <p className="text-xs text-gray-500">Investimento</p>
+                                    <p className="font-semibold text-gray-800">R$ {buyer.gastoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500">Receita</p>
+                                    <p className="font-semibold text-gray-800">R$ {buyer.receita.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+                                </div>
+                            </div>
+
+                            <div className="pt-3 border-t border-gray-100">
+                                <button 
+                                    onClick={() => setExpandedBuyer(expandedBuyer === buyer.name ? null : buyer.name)}
+                                    className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors text-sm font-medium"
+                                >
+                                    <BarChart2 className="w-4 h-4" />
+                                    <span>{expandedBuyer === buyer.name ? 'Ocultar Top 10' : 'Ver Top 10 Campanhas'}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Top 10 expandido */}
+                        {expandedBuyer === buyer.name && (
+                            <div className="px-6 pb-6 border-t border-gray-100">
+                                <TopTenSummary items={getTop10ForBuyer[buyer.name] || []} />
+                                <div className="space-y-3 max-h-96 overflow-y-auto">
+                                    {(getTop10ForBuyer[buyer.name] || []).map((c, idx) => (
+                                        <div key={c.id} className="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-xs font-bold text-gray-500">#{idx+1}</span>
+                                                    <span className="text-sm font-semibold text-gray-800 truncate">{c.id}</span>
+                                                </div>
+                                                <span className={`text-xs px-2 py-1 rounded-full ${c.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                    {c.status}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2 text-xs">
+                                                <div className="text-center">
+                                                    <div className={`font-semibold ${c.roiCalc >= 0 ? 'text-green-600' : 'text-red-600'}`}>{c.roiCalc.toFixed(1)}%</div>
+                                                    <div className="text-gray-500">ROI</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className={`font-semibold ${c.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>R$ {Math.abs(c.lucro).toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
+                                                    <div className="text-gray-500">Lucro</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="font-semibold text-gray-700">R$ {c.receita.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
+                                                    <div className="text-gray-500">Receita</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };
@@ -399,6 +1059,14 @@ const AnaliseSeries = ({ data }) => {
 };
 
 const Analises = ({ data }) => {
+    // Responsividade para gráficos
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        const onResize = () => setIsMobile(window.innerWidth < 768);
+        onResize();
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
     const buyerComparisonData = useMemo(() => {
         if (data.length === 0) return [];
         const buyers = {};
@@ -434,12 +1102,12 @@ const Analises = ({ data }) => {
                      <ResponsiveContainer width="100%" height={300}>
                         <BarChart data={buyerComparisonData}>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" tick={{fontSize: 12}}/>
-                            <YAxis tickFormatter={(val) => `R$${(val/1000).toFixed(0)}k`} tick={{fontSize: 12}}/>
+                            <XAxis dataKey="name" tick={{fontSize: isMobile ? 10 : 12}}/>
+                            <YAxis tickFormatter={(val) => `R$${(val/1000).toFixed(0)}k`} tick={{fontSize: isMobile ? 10 : 12}}/>
                             <Tooltip formatter={(value) => `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} />
-                            <Legend />
-                            <Bar dataKey="receita" fill="#8B5CF6" name="Receita" />
-                            <Bar dataKey="gasto" fill="#A78BFA" name="Gasto" />
+                            {isMobile ? null : <Legend />}
+                            <Bar dataKey="receita" fill="#10B981" name="Receita" />
+                            <Bar dataKey="gasto" fill="#EF4444" name="Gasto" />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
@@ -448,10 +1116,10 @@ const Analises = ({ data }) => {
                     <ResponsiveContainer width="100%" height={300}>
                         <LineChart data={trendData}>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="date" tick={{fontSize: 12}}/>
-                            <YAxis tickFormatter={(val) => `R$${(val/1000).toFixed(0)}k`} tick={{fontSize: 12}}/>
+                            <XAxis dataKey="date" tick={{fontSize: isMobile ? 10 : 12}}/>
+                            <YAxis tickFormatter={(val) => `R$${(val/1000).toFixed(0)}k`} tick={{fontSize: isMobile ? 10 : 12}}/>
                             <Tooltip formatter={(value) => `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} />
-                            <Legend />
+                            {isMobile ? null : <Legend />}
                             <Line type="monotone" dataKey="Receita" stroke="#3B82F6" strokeWidth={2} />
                             <Line type="monotone" dataKey="Gasto" stroke="#8B5CF6" strokeWidth={2} />
                         </LineChart>
@@ -486,7 +1154,13 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
     const [pastedText, setPastedText] = useState('');
     const [feedback, setFeedback] = useState({ message: '', type: '' });
     const [isLoading, setIsLoading] = useState(false);
-    const [importDate, setImportDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [importDate, setImportDate] = useState(() => {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    });
     const [useSelectedDateForAll, setUseSelectedDateForAll] = useState(true);
     const [ganhoRepresents, setGanhoRepresents] = useState('receita'); // 'receita' | 'lucro'
 
@@ -541,7 +1215,7 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
             try {
                 console.log(`Processando linha ${i + 1}: ${line}`);
                 
-                // Dividir por espaços múltiplos para capturar os campos
+                // Dividir por espaços múltiplos e extrair MÉTRICAS a partir do final (mais robusto)
                 const parts = line.split(/\s+/);
                 console.log(`Partes encontradas: ${parts.length}`, parts);
                 
@@ -551,15 +1225,36 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
                     continue;
                 }
 
-                // Formato esperado: CAMPANHA ROI GASTO GANHO LUCRO CPC CTR eCPM
-                const campanha = parts[0].trim();
-                const roi = parts[1].trim();
-                const gasto = parts[2].trim();
-                const ganho = parts[3].trim();
-                const lucro = parts[4].trim();
-                const cpc = parts[5].trim();
-                const ctr = parts[6].trim();
-                const ecpm = parts[7].trim();
+                // Consome do final agrupando tokens que pertencem ao mesmo valor (ex.: 'R$' '498,84')
+                const tokens = parts.slice();
+                const vals = [];
+                const takeValueFromEnd = () => {
+                    if (!tokens.length) return '';
+                    let cur = tokens.pop();
+                    // Se não há dígitos, tenta anexar tokens anteriores até formar um valor com dígitos
+                    while (cur && !/[0-9]/.test(cur) && tokens.length) {
+                        cur = tokens.pop() + ' ' + cur;
+                    }
+                    return cur?.trim() ?? '';
+                };
+                while (vals.length < 7 && tokens.length) {
+                    vals.push(takeValueFromEnd());
+                }
+                if (vals.length < 7) {
+                    errors.push(`Linha ${i + 1}: não foi possível isolar 7 métricas`);
+                    campanhasNaoImportadas.push(line.substring(0, 50) + '...');
+                    continue;
+                }
+                // vals está do fim para o início: [ecpm, ctr, cpc, lucro, ganho, gasto, roi]
+                const ecpm = vals[0];
+                const ctr = vals[1];
+                const cpc = vals[2];
+                const lucro = vals[3];
+                const ganho = vals[4];
+                const gasto = vals[5];
+                const roi = vals[6];
+                const campanhaRaw = tokens.join(' ').trim();
+                const campanha = campanhaRaw.replace(/\s*-\s*/g, '-'); // normaliza espaços ao redor de '-'
 
                 console.log(`Processando campanha: ${campanha}`);
 
@@ -571,34 +1266,49 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
                 }
 
                 // Processar valores
-                const gastoNum = parseCurrency(gasto);
-                const ganhoNum = parseCurrency(ganho);
-                const lucroColNum = parseCurrency(lucro);
+                console.log(`Raw values - gasto: '${gasto}', ganho: '${ganho}', lucro: '${lucro}'`);
+                let gastoNum = parseCurrency(gasto);
+                let ganhoNum = parseCurrency(ganho);
+                let lucroColNum = parseCurrency(lucro);
                 const cpcNum = parseCurrency(cpc);
                 const ecpmNum = parseCurrency(ecpm);
                 const ctrNum = parsePercentage(ctr);
                 const roiNum = parsePercentage(roi);
+                console.log(`Parsed values - gastoNum: ${gastoNum}, ganhoNum: ${ganhoNum}, lucroColNum: ${lucroColNum}`);
 
-                // Derivar receita/lucro conforme configuração "GANHO representa"
+                // Derivar receita/lucro conforme configuração "GANHO representa" (determinístico)
                 let receitaNum;
                 let lucroNum;
                 if (ganhoRepresents === 'receita') {
+                    // GANHO é Receita
                     receitaNum = ganhoNum;
-                    // Se a coluna LUCRO vier vazia/0, calcula como receita - gasto
-                    lucroNum = !isNaN(lucroColNum) && lucroColNum !== null && lucroColNum !== undefined && !Number.isNaN(lucroColNum)
-                        ? lucroColNum
-                        : (isNaN(gastoNum) || isNaN(ganhoNum) ? NaN : (ganhoNum - gastoNum));
+                    lucroNum = (!isNaN(gastoNum) && !isNaN(receitaNum)) ? (receitaNum - gastoNum) : NaN;
                 } else {
-                    // ganho = lucro
+                    // GANHO é Lucro
                     lucroNum = ganhoNum;
-                    // Se a coluna LUCRO (na planilha) estiver contendo receita, usa; senão receita = gasto + lucro
-                    receitaNum = !isNaN(lucroColNum) && lucroColNum !== null && lucroColNum !== undefined && !Number.isNaN(lucroColNum)
-                        ? lucroColNum
-                        : (isNaN(gastoNum) || isNaN(ganhoNum) ? NaN : (gastoNum + ganhoNum));
+                    receitaNum = (!isNaN(gastoNum) && !isNaN(lucroNum)) ? (gastoNum + lucroNum) : NaN;
                 }
 
-                console.log(`Valores processados: gasto=${gastoNum}, receita=${receitaNum}, lucro=${lucroNum}`);
+                // Regras de fallback para casos com campo faltante
+                if (isNaN(receitaNum) && !isNaN(gastoNum) && !isNaN(lucroNum)) {
+                    receitaNum = gastoNum + lucroNum;
+                }
+                if (isNaN(lucroNum) && !isNaN(gastoNum) && !isNaN(receitaNum)) {
+                    lucroNum = receitaNum - gastoNum;
+                }
+                if (isNaN(gastoNum) && !isNaN(receitaNum) && !isNaN(lucroNum)) {
+                    // Se gasto faltou mas temos receita e lucro, deriva gasto
+                    // Observação: gasto não pode ser negativo; se resultado < 0, mantém NaN para descartar linha
+                    const derived = receitaNum - lucroNum;
+                    if (derived >= 0) {
+                        gastoNum = derived;
+                    }
+                }
 
+                console.log(`Valores finais - gasto=${gastoNum}, receita=${receitaNum}, lucro=${lucroNum}`);
+                console.log(`Media Buyer: ${BUYER_MAP[buyerCode] || buyerCode}`);
+
+                // Validação final
                 if (isNaN(gastoNum) || isNaN(receitaNum) || isNaN(lucroNum)) {
                     errors.push(`Linha ${i + 1}: valores monetários inválidos`);
                     campanhasNaoImportadas.push(campanha);
@@ -607,12 +1317,14 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
                 }
 
                 // Extrair informações da campanha
-                const campaignParts = campanha.split('-');
+                const campaignParts = campanha.split('-').map(s => s.trim()).filter(Boolean);
                 console.log(`Partes da campanha: ${campaignParts}`);
                 
                 let buyerCode = null;
                 let dateStr = null;
                 let seriesCode = null;
+                let accountCode = null; // ex: DTVA-01
+                let siteCode = null;    // SDM | DOR
 
                 // Procurar buyer code e data em todas as partes
                 for (const part of campaignParts) {
@@ -630,13 +1342,35 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
                 // Código da série é a última parte
                 seriesCode = campaignParts[campaignParts.length - 1];
 
-                console.log(`Extraído: buyerCode=${buyerCode}, dateStr=${dateStr}, seriesCode=${seriesCode}`);
+                // Conta de anúncio: primeiras duas partes (ex.: DTVA-01)
+                if (campaignParts.length >= 2) {
+                    accountCode = `${campaignParts[0]}-${campaignParts[1]}`;
+                }
+                // Site: terceira parte (SDM/DOR)
+                if (campaignParts.length >= 3) {
+                    const siteToken = campaignParts[2].trim();
+                    if (/^(SDM|DOR)$/i.test(siteToken)) {
+                        siteCode = siteToken.toUpperCase();
+                    }
+                }
+
+                console.log(`Extraído: buyerCode=${buyerCode}, dateStr=${dateStr}, seriesCode=${seriesCode}, accountCode=${accountCode}, siteCode=${siteCode}`);
 
                 // Validações
                 if (!buyerCode) {
                     errors.push(`Linha ${i + 1}: buyer code não encontrado em ${campanha}`);
                     campanhasNaoImportadas.push(campanha);
                     console.log(`Buyer code não encontrado: ${campanha}`);
+                    continue;
+                }
+                if (!accountCode) {
+                    errors.push(`Linha ${i + 1}: accountCode não encontrado em ${campanha}`);
+                    campanhasNaoImportadas.push(campanha);
+                    continue;
+                }
+                if (!siteCode) {
+                    errors.push(`Linha ${i + 1}: site (SDM/DOR) não encontrado em ${campanha}`);
+                    campanhasNaoImportadas.push(campanha);
                     continue;
                 }
 
@@ -679,6 +1413,8 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
                     mediaBuyerCode: buyerCode,
                     serie: SERIES_MAP[seriesCode] || seriesCode,
                     serieCode: seriesCode,
+                    accountCode: accountCode,
+                    site: siteCode,
                     gastos: gastoNum,
                     receita: receitaNum,
                     lucro: lucroNum,
@@ -689,7 +1425,7 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
                     status: 'ACTIVE'
                 });
 
-                console.log(`✅ Campanha importada com sucesso: ${campanha}`);
+                console.log(`✅ Campanha importada: ${campanha} - Gasto: R$${gastoNum}, Lucro: R$${lucroNum}`);
 
             } catch(e) {
                 console.error(`Erro ao processar linha ${i + 1}:`, e);
@@ -807,6 +1543,7 @@ export default function App() {
     const [filters, setFilters] = useState({ 
         mediaBuyer: 'all', 
         serie: 'all',
+        site: 'all',
         dateRange: 'all',
         startDate: '',
         endDate: ''
@@ -822,7 +1559,12 @@ export default function App() {
 
         // Persistir no Firestore agrupado por data de referência
         try {
-            const dateId = (ref || new Date()).toISOString().slice(0,10); // YYYY-MM-DD
+            // Usa data LOCAL para evitar deslocamento por timezone (não usar toISOString)
+            const base = ref || new Date();
+            const y = base.getFullYear();
+            const m = String(base.getMonth() + 1).padStart(2, '0');
+            const d = String(base.getDate()).padStart(2, '0');
+            const dateId = `${y}-${m}-${d}`; // YYYY-MM-DD (local)
             const importDocRef = doc(collection(db, 'imports'), dateId);
             await setDoc(importDocRef, { id: dateId });
             const batch = writeBatch(db);
@@ -864,9 +1606,11 @@ export default function App() {
                 });
                 setAllData(loaded);
                 const [y,m,d] = latestId.split('-').map(n => parseInt(n,10));
-                const ref = new Date(y, m-1, d);
+                // Usar a mesma lógica de data local que handleDataImported
+                const ref = new Date(y, m-1, d, 12, 0, 0, 0); // meio-dia para evitar problemas de timezone
                 setImportReferenceDate(ref);
-                console.log(`Firestore: carregadas ${loaded.length} campanhas do import ${latestId}`);
+                console.log(`Firestore: carregadas ${loaded.length} campanhas do import ${latestId}, referenceDate: ${ref.toLocaleDateString('pt-BR')}`);
+            console.log(`DEBUG: latestId = ${latestId}, parsed date parts: y=${y}, m=${m}, d=${d}`);
             } catch (err) {
                 console.error('Erro ao carregar dados do Firestore:', err);
             }
@@ -882,17 +1626,26 @@ export default function App() {
             
             const mediaBuyerMatch = filters.mediaBuyer === 'all' || item.mediaBuyer === filters.mediaBuyer;
             const serieMatch = filters.serie === 'all' || item.serie === filters.serie;
+            const siteMatch = filters.site === 'all' || item.site === filters.site;
             
             // Filtro de data
             let dateMatch = true;
             if (item.data && filters.dateRange !== 'all') {
                 const itemDate = new Date(item.data);
-                const today = importReferenceDate ? new Date(importReferenceDate) : new Date();
+                // Base para "Hoje": usa sempre a data atual do sistema para evitar problemas de timezone
+                const today = filters.dateRange === 'today' && filters.startDate
+                    ? (() => {
+                        const [y, m, d] = filters.startDate.split('-').map(n => parseInt(n, 10));
+                        return new Date(y, m - 1, d, 12, 0, 0, 0);
+                    })()
+                    : (importReferenceDate ? new Date(importReferenceDate) : new Date());
                 
                 if (filters.dateRange === 'today') {
                     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
                     const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-                    dateMatch = itemDate >= startOfToday && itemDate <= endOfToday;
+                    // Normaliza a data do item para o início do dia para evitar desvios de timezone
+                    const itemStart = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate(), 0, 0, 0, 0);
+                    dateMatch = itemStart >= startOfToday && itemStart <= endOfToday;
                 } else if (filters.dateRange === '7days') {
                     const sevenDaysAgo = new Date(today);
                     sevenDaysAgo.setDate(today.getDate() - 7);
@@ -906,36 +1659,62 @@ export default function App() {
                     thirtyDaysAgo.setDate(today.getDate() - 30);
                     dateMatch = itemDate >= thirtyDaysAgo;
                 } else if (filters.dateRange === 'custom' && filters.startDate && filters.endDate) {
-                    const startDate = new Date(filters.startDate);
-                    const endDate = new Date(filters.endDate);
-                    endDate.setHours(23, 59, 59, 999);
-                    dateMatch = itemDate >= startDate && itemDate <= endDate;
+                    // Parse dates manually to avoid timezone issues
+                    const [sy, sm, sd] = filters.startDate.split('-').map(n => parseInt(n, 10));
+                    const [ey, em, ed] = filters.endDate.split('-').map(n => parseInt(n, 10));
+                    const startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+                    const endDate = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+                    const itemStart = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate(), 0, 0, 0, 0);
+                    dateMatch = itemStart >= startDate && itemStart <= endDate;
                 }
             }
             
-            return mediaBuyerMatch && serieMatch && dateMatch;
+            return mediaBuyerMatch && serieMatch && siteMatch && dateMatch;
         });
-    }, [allData, filters]);
+    }, [allData, filters, importReferenceDate]);
 
     const kpis = useMemo(() => {
-        const dataToProcess = filteredData;
-        const total = dataToProcess.reduce((acc, item) => {
-            acc.gastos += item.gastos;
-            acc.receita += item.receita;
-            acc.lucro += item.lucro;
+        const d = filteredData;
+        const total = d.reduce((acc, it) => {
+            acc.gastos += it.gastos;
+            acc.receita += it.receita;
+            acc.lucro += it.lucro;
+            acc.cpc += isNaN(it.cpc) ? 0 : it.cpc;
+            acc.ctr += isNaN(it.ctr) ? 0 : it.ctr;
+            acc.ecpm += isNaN(it.ecpm) ? 0 : it.ecpm;
+            if (it.gastos > 0) {
+                const roi = (it.lucro / it.gastos) * 100;
+                acc.roiList.push(roi);
+                if (roi >= 0) acc.roiPositivos += 1; else acc.roiNegativos += 1;
+            }
             return acc;
-        }, { gastos: 0, receita: 0, lucro: 0 });
-        total.roi = total.gastos > 0 ? (total.lucro / total.gastos) * 100 : 0;
-        return total;
+        }, { gastos: 0, receita: 0, lucro: 0, cpc: 0, ctr: 0, ecpm: 0, roiList: [], roiPositivos: 0, roiNegativos: 0 });
+        const n = d.length || 1;
+        const roiMedio = total.roiList.length ? (total.roiList.reduce((a,b)=>a+b,0) / total.roiList.length) : 0;
+        return {
+            gastos: total.gastos,
+            receita: total.receita,
+            lucro: total.lucro,
+            roi: total.gastos > 0 ? (total.lucro / total.gastos) * 100 : 0,
+            totalCampanhas: d.length,
+            roiPositivos: total.roiPositivos,
+            roiNegativos: total.roiNegativos,
+            roiMedio,
+            cpcMedio: d.length ? total.cpc / n : 0,
+            ctrMedio: d.length ? total.ctr / n : 0,
+            ecpmMedio: d.length ? total.ecpm / n : 0,
+        };
     }, [filteredData]);
     
     const allSeries = useMemo(() => [...new Set(allData.map(d => d.serie))].sort(), [allData]);
     const allBuyers = useMemo(() => [...new Set(allData.map(d => d.mediaBuyer))].sort(), [allData]);
 
     const TABS = {
-        'Visão Geral': <VisaoGeral data={filteredData} kpis={kpis} filters={filters} setFilters={setFilters} allSeries={allSeries} allBuyers={allBuyers} />,
+        'Visão Geral': <VisaoGeral data={filteredData} kpis={kpis} filters={filters} setFilters={setFilters} allSeries={allSeries} allBuyers={allBuyers} importReferenceDate={importReferenceDate} />,
         'Media Buyers': <MediaBuyers data={filteredData} />,
         'Análise de Séries': <AnaliseSeries data={filteredData} />,
+        'Contas': <PerformancePorConta data={filteredData} />,
+        'Sites': <PerformancePorSite data={filteredData} />,
         'Análises': <Analises data={filteredData} />,
         'Importar Dados': <ImportarDados onDataImported={handleDataImported} currentDataCount={allData.length} />,
     };
