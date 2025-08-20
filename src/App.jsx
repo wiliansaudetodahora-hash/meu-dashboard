@@ -109,6 +109,58 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers }) =
                             {allSeries.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                     </div>
+                    <div>
+                        <label className="text-sm text-gray-600">Período</label>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                            {[
+                                {key: 'all', label: 'Tudo'},
+                                {key: 'today', label: 'Hoje'},
+                                {key: '7days', label: '7d'},
+                                {key: '15days', label: '15d'},
+                                {key: '30days', label: '30d'}
+                            ].map(opt => (
+                                <button
+                                    key={opt.key}
+                                    onClick={() => setFilters({...filters, dateRange: opt.key})}
+                                    className={`text-xs px-2 py-1 rounded border ${filters.dateRange === opt.key ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                            <input
+                                type="date"
+                                value={filters.startDate}
+                                onChange={(e) => setFilters({...filters, startDate: e.target.value})}
+                                className="w-full border rounded-md p-1.5 text-sm"
+                            />
+                            <input
+                                type="date"
+                                value={filters.endDate}
+                                onChange={(e) => setFilters({...filters, endDate: e.target.value})}
+                                className="w-full border rounded-md p-1.5 text-sm"
+                            />
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                            <button
+                                onClick={() => {
+                                    if (filters.startDate && filters.endDate) {
+                                        setFilters({...filters, dateRange: 'custom'});
+                                    }
+                                }}
+                                className="text-xs px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600"
+                            >
+                                Aplicar intervalo
+                            </button>
+                            <button
+                                onClick={() => setFilters({...filters, dateRange: 'all', startDate: '', endDate: ''})}
+                                className="text-xs px-2 py-1 rounded border bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                            >
+                                Limpar
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -432,21 +484,41 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
     const [pastedText, setPastedText] = useState('');
     const [feedback, setFeedback] = useState({ message: '', type: '' });
     const [isLoading, setIsLoading] = useState(false);
+    const [importDate, setImportDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [useSelectedDateForAll, setUseSelectedDateForAll] = useState(true);
+    const [ganhoRepresents, setGanhoRepresents] = useState('receita'); // 'receita' | 'lucro'
 
     const parseCurrency = (value) => {
-        if (typeof value !== 'string') return NaN;
-        let cleanValue = value.replace('R$', '').trim();
-        if (cleanValue.includes(',') && cleanValue.lastIndexOf(',') > cleanValue.lastIndexOf('.')) {
-            cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+        if (value == null) return NaN;
+        if (typeof value !== 'string') value = String(value);
+        // normaliza espaços e sinais
+        let clean = value.replace(/\u00A0/g, ' ').trim(); // NBSP -> espaço
+        clean = clean.replace(/[−–—]/g, '-'); // diferentes traços para '-'
+        // trata parênteses como negativo: (R$9,50) => -R$9,50
+        const hasParens = /^\(.*\)$/.test(clean);
+        if (hasParens) clean = '-' + clean.slice(1, -1);
+        // remove símbolo e espaços
+        clean = clean.replace(/R\$/i, '').replace(/\s+/g, '');
+        // agora lida com separadores PT/EN
+        if (clean.includes(',') && clean.lastIndexOf(',') > clean.lastIndexOf('.')) {
+            clean = clean.replace(/\./g, '').replace(',', '.');
         } else {
-            cleanValue = cleanValue.replace(/,/g, '');
+            clean = clean.replace(/,/g, '');
         }
-        return parseFloat(cleanValue);
+        const num = parseFloat(clean);
+        return isNaN(num) ? NaN : num;
+    };
+
+    const parsePercentage = (value) => {
+        if (typeof value !== 'string') return NaN;
+        const clean = value.replace('%', '').replace(',', '.').trim();
+        return parseFloat(clean);
     };
 
     const processData = (rawText) => {
         setIsLoading(true);
         setFeedback({ message: '', type: '' });
+        
         if (!rawText.trim()) {
             setFeedback({ message: 'Nenhum dado para importar.', type: 'error' });
             setIsLoading(false);
@@ -454,103 +526,218 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
         }
 
         const lines = rawText.trim().split('\n');
-        lines.shift(); 
-
-        const newData = [];
-        let errors = 0;
+        console.log(`Total de linhas recebidas: ${lines.length}`);
         
-        const campaignRegex = /[A-Z0-9-]{10,}[0-9]{8}[A-Z0-9-]+/;
-        const currencyRegex = /-?R\$\s?[0-9.,]+/g;
+        const newData = [];
+        const errors = [];
+        const campanhasNaoImportadas = [];
 
-        for (const line of lines) {
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue; // Pular linhas vazias
+            
             try {
-                const campaignMatch = line.match(campaignRegex);
-                const currencyMatches = line.match(currencyRegex);
-
-                if (!campaignMatch || !currencyMatches || currencyMatches.length < 3) {
-                    errors++;
-                    continue;
-                }
-
-                const campaignId = campaignMatch[0];
-                const spendStr = currencyMatches[0];
-                const revenueStr = currencyMatches[1];
-                const profitStr = currencyMatches[2];
+                console.log(`Processando linha ${i + 1}: ${line}`);
                 
-                const spend = parseCurrency(spendStr);
-                const revenue = parseCurrency(revenueStr);
-                const profit = parseCurrency(profitStr);
-
-                if (!campaignId || isNaN(spend) || isNaN(revenue) || isNaN(profit)) {
-                    errors++;
-                    continue;
-                }
-
-                const parts = campaignId.split('-');
+                // Dividir por espaços múltiplos para capturar os campos
+                const parts = line.split(/\s+/);
+                console.log(`Partes encontradas: ${parts.length}`, parts);
                 
-                if (parts.length < 6) {
-                    errors++;
+                if (parts.length < 8) {
+                    errors.push(`Linha ${i + 1}: formato inválido - menos de 8 colunas`);
+                    campanhasNaoImportadas.push(line.substring(0, 50) + '...');
                     continue;
                 }
 
-                let prefix, acc, platform, buyerCodeWithNum, dateStr, seriesCode;
+                // Formato esperado: CAMPANHA ROI GASTO GANHO LUCRO CPC CTR eCPM
+                const campanha = parts[0].trim();
+                const roi = parts[1].trim();
+                const gasto = parts[2].trim();
+                const ganho = parts[3].trim();
+                const lucro = parts[4].trim();
+                const cpc = parts[5].trim();
+                const ctr = parts[6].trim();
+                const ecpm = parts[7].trim();
 
-                if (parts.length === 6) {
-                    [prefix, acc, platform, buyerCodeWithNum, dateStr, seriesCode] = parts;
+                console.log(`Processando campanha: ${campanha}`);
+
+                // Validar campanha
+                if (!campanha || !campanha.includes('-')) {
+                    errors.push(`Linha ${i + 1}: campanha inválida - ${campanha}`);
+                    campanhasNaoImportadas.push(campanha || 'VAZIO');
+                    continue;
+                }
+
+                // Processar valores
+                const gastoNum = parseCurrency(gasto);
+                const ganhoNum = parseCurrency(ganho);
+                const lucroColNum = parseCurrency(lucro);
+                const cpcNum = parseCurrency(cpc);
+                const ecpmNum = parseCurrency(ecpm);
+                const ctrNum = parsePercentage(ctr);
+                const roiNum = parsePercentage(roi);
+
+                // Derivar receita/lucro conforme configuração "GANHO representa"
+                let receitaNum;
+                let lucroNum;
+                if (ganhoRepresents === 'receita') {
+                    receitaNum = ganhoNum;
+                    // Se a coluna LUCRO vier vazia/0, calcula como receita - gasto
+                    lucroNum = !isNaN(lucroColNum) && lucroColNum !== null && lucroColNum !== undefined && !Number.isNaN(lucroColNum)
+                        ? lucroColNum
+                        : (isNaN(gastoNum) || isNaN(ganhoNum) ? NaN : (ganhoNum - gastoNum));
                 } else {
-                    seriesCode = parts.pop();
-                    const countryOrRegion = parts.pop();
-                    seriesCode = `${countryOrRegion}-${seriesCode}`;
-                    dateStr = parts.pop();
-                    buyerCodeWithNum = parts.pop();
-                    platform = parts.pop();
-                    acc = parts.pop();
-                    prefix = parts.join('-');
+                    // ganho = lucro
+                    lucroNum = ganhoNum;
+                    // Se a coluna LUCRO (na planilha) estiver contendo receita, usa; senão receita = gasto + lucro
+                    receitaNum = !isNaN(lucroColNum) && lucroColNum !== null && lucroColNum !== undefined && !Number.isNaN(lucroColNum)
+                        ? lucroColNum
+                        : (isNaN(gastoNum) || isNaN(ganhoNum) ? NaN : (gastoNum + ganhoNum));
                 }
-                
-                const buyerInitial = buyerCodeWithNum.substring(0, 2);
 
-                if (!['WA', 'BS', 'CS'].includes(buyerInitial)) {
-                    errors++;
+                console.log(`Valores processados: gasto=${gastoNum}, receita=${receitaNum}, lucro=${lucroNum}`);
+
+                if (isNaN(gastoNum) || isNaN(receitaNum) || isNaN(lucroNum)) {
+                    errors.push(`Linha ${i + 1}: valores monetários inválidos`);
+                    campanhasNaoImportadas.push(campanha);
+                    console.log(`Erro nos valores: gasto=${gasto}(${gastoNum}), receita=${ganho}(${receitaNum}), lucro=${lucro}(${lucroNum})`);
                     continue;
                 }
+
+                // Extrair informações da campanha
+                const campaignParts = campanha.split('-');
+                console.log(`Partes da campanha: ${campaignParts}`);
                 
-                const day = parseInt(dateStr.substring(0, 2), 10);
-                const month = parseInt(dateStr.substring(2, 4), 10) - 1;
-                const year = parseInt(dateStr.substring(4, 8), 10);
-                const dateFromCampaign = new Date(year, month, day);
+                let buyerCode = null;
+                let dateStr = null;
+                let seriesCode = null;
+
+                // Procurar buyer code e data em todas as partes
+                for (const part of campaignParts) {
+                    // Verificar buyer code (WA, BS, CS seguido de números)
+                    if (!buyerCode && /^(WA|BS|CS)\d+$/.test(part)) {
+                        buyerCode = part.substring(0, 2);
+                    }
+                    
+                    // Verificar data (8 dígitos)
+                    if (!dateStr && /^\d{8}$/.test(part)) {
+                        dateStr = part;
+                    }
+                }
+
+                // Código da série é a última parte
+                seriesCode = campaignParts[campaignParts.length - 1];
+
+                console.log(`Extraído: buyerCode=${buyerCode}, dateStr=${dateStr}, seriesCode=${seriesCode}`);
+
+                // Validações
+                if (!buyerCode) {
+                    errors.push(`Linha ${i + 1}: buyer code não encontrado em ${campanha}`);
+                    campanhasNaoImportadas.push(campanha);
+                    console.log(`Buyer code não encontrado: ${campanha}`);
+                    continue;
+                }
+
+                // Se estiver usando a data selecionada para todas, não exigimos data na campanha
+                if (!useSelectedDateForAll) {
+                    if (!dateStr) {
+                        errors.push(`Linha ${i + 1}: data não encontrada em ${campanha}`);
+                        campanhasNaoImportadas.push(campanha);
+                        console.log(`Data não encontrada: ${campanha}`);
+                        continue;
+                    }
+                }
+
+                // Determinar data da campanha
+                let dateFromCampaign;
+                if (useSelectedDateForAll && importDate) {
+                    // Usar a data selecionada (AAAA-MM-DD)
+                    const [y, m, d] = importDate.split('-').map(n => parseInt(n, 10));
+                    dateFromCampaign = new Date(y, (m - 1), d);
+                } else {
+                    // Processar data a partir do código da campanha (DDMMYYYY)
+                    const day = parseInt(dateStr.substring(0, 2), 10);
+                    const month = parseInt(dateStr.substring(2, 4), 10) - 1;
+                    const year = parseInt(dateStr.substring(4, 8), 10);
+                    dateFromCampaign = new Date(year, month, day);
+                }
 
                 if (isNaN(dateFromCampaign.getTime())) {
-                    errors++;
+                    errors.push(`Linha ${i + 1}: data inválida - ${dateStr}`);
+                    campanhasNaoImportadas.push(campanha);
+                    console.log(`Data inválida: ${dateStr} em ${campanha}`);
                     continue;
                 }
 
+                // Adicionar dados processados
                 newData.push({
-                    id: campaignId,
+                    id: campanha,
                     data: dateFromCampaign,
-                    mediaBuyer: BUYER_MAP[buyerInitial] || buyerInitial,
-                    mediaBuyerCode: buyerInitial,
+                    mediaBuyer: BUYER_MAP[buyerCode] || buyerCode,
+                    mediaBuyerCode: buyerCode,
                     serie: SERIES_MAP[seriesCode] || seriesCode,
                     serieCode: seriesCode,
-                    plataforma: PLATFORM_MAP[platform] || platform,
-                    gastos: spend,
-                    receita: revenue,
-                    lucro: profit,
-                    roi: spend > 0 ? (profit / spend) * 100 : 0,
+                    gastos: gastoNum,
+                    receita: receitaNum,
+                    lucro: lucroNum,
+                    roi: roiNum || (gastoNum > 0 ? (lucroNum / gastoNum) * 100 : 0),
+                    cpc: cpcNum || 0,
+                    ctr: ctrNum || 0,
+                    ecpm: ecpmNum || 0,
+                    status: 'ACTIVE'
                 });
 
+                console.log(`✅ Campanha importada com sucesso: ${campanha}`);
+
             } catch(e) {
-                errors++;
+                console.error(`Erro ao processar linha ${i + 1}:`, e);
+                errors.push(`Linha ${i + 1}: erro de processamento - ${e.message}`);
+                const campanhaParte = line.split(/\s+/)[0] || line.substring(0, 30);
+                campanhasNaoImportadas.push(campanhaParte);
             }
         }
         
-        if(newData.length > 0){
-            onDataImported(newData);
-            setFeedback({ message: `Sucesso! Foram lidas ${lines.length} linhas e importadas ${newData.length} campanhas. ${errors > 0 ? `${errors} linhas com erro foram ignoradas.` : ''}`, type: 'success' });
+        // Log detalhado do resultado
+        console.log('=== RESUMO DA IMPORTAÇÃO ===');
+        console.log(`Linhas processadas: ${lines.length}`);
+        console.log(`Campanhas importadas: ${newData.length}`);
+        console.log(`Erros encontrados: ${errors.length}`);
+        
+        if (campanhasNaoImportadas.length > 0) {
+            console.log('Campanhas NÃO importadas:');
+            campanhasNaoImportadas.forEach((camp, idx) => {
+                console.log(`  ${idx + 1}. ${camp}`);
+            });
+        }
+        
+        if (errors.length > 0) {
+            console.log('Detalhes dos erros:');
+            errors.forEach(err => console.log(`  - ${err}`));
+        }
+        
+        // Atualizar feedback
+        if (newData.length > 0) {
+            const selectedDateObj = importDate ? new Date(importDate) : null;
+            onDataImported(newData, selectedDateObj);
+            
+            let mensagem = `✅ ${newData.length} campanhas importadas com sucesso!`;
+            if (errors.length > 0) {
+                mensagem += ` ⚠️ ${errors.length} linhas não puderam ser processadas.`;
+                mensagem += ` Verifique o console (F12) para detalhes.`;
+            }
+            
+            setFeedback({ 
+                message: mensagem, 
+                type: 'success' 
+            });
             setPastedText('');
         } else {
-            setFeedback({ message: `Não foi possível ler os dados. Verifique se o formato copiado está correto e tente novamente.`, type: 'error' });
+            setFeedback({ 
+                message: `❌ Nenhuma campanha pôde ser importada. Verifique o formato dos dados e o console (F12) para mais detalhes.`, 
+                type: 'error' 
+            });
         }
+        
         setIsLoading(false);
     };
     
@@ -566,6 +753,25 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
             </div>
             
             <div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label className="text-sm text-gray-600">Data de referência</label>
+                        <input type="date" value={importDate} onChange={(e) => setImportDate(e.target.value)} className="w-full border rounded-md p-2 text-sm mt-1" />
+                    </div>
+                    <div>
+                        <label className="text-sm text-gray-600">GANHO representa</label>
+                        <select value={ganhoRepresents} onChange={(e) => setGanhoRepresents(e.target.value)} className="w-full border rounded-md p-2 text-sm mt-1">
+                            <option value="receita">Receita</option>
+                            <option value="lucro">Lucro</option>
+                        </select>
+                    </div>
+                    <div className="md:col-span-1 flex items-end">
+                        <label className="inline-flex items-center text-sm text-gray-700">
+                            <input type="checkbox" className="mr-2" checked={useSelectedDateForAll} onChange={(e) => setUseSelectedDateForAll(e.target.checked)} />
+                            Usar a data de referência para todas as campanhas importadas
+                        </label>
+                    </div>
+                </div>
                 <h3 className="font-semibold text-gray-700 mb-2">Cole os Dados da Sua Planilha</h3>
                 <textarea value={pastedText} onChange={(e) => setPastedText(e.target.value)} className="w-full h-48 border border-gray-300 rounded-lg p-2 text-sm font-mono" placeholder="Copie as colunas da sua planilha (incluindo o cabeçalho: STATUS CAMPANHA ROI GASTO...) e cole aqui..." disabled={isLoading}></textarea>
                 <div className="flex justify-end mt-4">
@@ -595,18 +801,65 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
 export default function App() {
     const [allData, setAllData] = useState([]);
     const [activeTab, setActiveTab] = useState('Importar Dados');
-    const [filters, setFilters] = useState({ mediaBuyer: 'all', serie: 'all' });
+    const [importReferenceDate, setImportReferenceDate] = useState(null);
+    const [filters, setFilters] = useState({ 
+        mediaBuyer: 'all', 
+        serie: 'all',
+        dateRange: 'all',
+        startDate: '',
+        endDate: ''
+    });
 
-    const handleDataImported = (newData) => {
+    const handleDataImported = (newData, referenceDate) => {
         setAllData(newData);
+        if (referenceDate instanceof Date && !isNaN(referenceDate)) {
+            // zera hora para padronizar comparação de 'hoje'
+            const ref = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+            setImportReferenceDate(ref);
+        }
         setActiveTab('Visão Geral');
     };
 
     const filteredData = useMemo(() => {
+        if (!allData || allData.length === 0) return [];
+        
         return allData.filter(item => {
+            if (!item) return false;
+            
             const mediaBuyerMatch = filters.mediaBuyer === 'all' || item.mediaBuyer === filters.mediaBuyer;
             const serieMatch = filters.serie === 'all' || item.serie === filters.serie;
-            return mediaBuyerMatch && serieMatch;
+            
+            // Filtro de data
+            let dateMatch = true;
+            if (item.data && filters.dateRange !== 'all') {
+                const itemDate = new Date(item.data);
+                const today = importReferenceDate ? new Date(importReferenceDate) : new Date();
+                
+                if (filters.dateRange === 'today') {
+                    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+                    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+                    dateMatch = itemDate >= startOfToday && itemDate <= endOfToday;
+                } else if (filters.dateRange === '7days') {
+                    const sevenDaysAgo = new Date(today);
+                    sevenDaysAgo.setDate(today.getDate() - 7);
+                    dateMatch = itemDate >= sevenDaysAgo;
+                } else if (filters.dateRange === '15days') {
+                    const fifteenDaysAgo = new Date(today);
+                    fifteenDaysAgo.setDate(today.getDate() - 15);
+                    dateMatch = itemDate >= fifteenDaysAgo;
+                } else if (filters.dateRange === '30days') {
+                    const thirtyDaysAgo = new Date(today);
+                    thirtyDaysAgo.setDate(today.getDate() - 30);
+                    dateMatch = itemDate >= thirtyDaysAgo;
+                } else if (filters.dateRange === 'custom' && filters.startDate && filters.endDate) {
+                    const startDate = new Date(filters.startDate);
+                    const endDate = new Date(filters.endDate);
+                    endDate.setHours(23, 59, 59, 999);
+                    dateMatch = itemDate >= startDate && itemDate <= endDate;
+                }
+            }
+            
+            return mediaBuyerMatch && serieMatch && dateMatch;
         });
     }, [allData, filters]);
 
