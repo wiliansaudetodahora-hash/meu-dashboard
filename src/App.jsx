@@ -1173,8 +1173,9 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
         // trata parênteses como negativo: (R$9,50) => -R$9,50
         const hasParens = /^\(.*\)$/.test(clean);
         if (hasParens) clean = '-' + clean.slice(1, -1);
-        // remove símbolo e espaços
-        clean = clean.replace(/R\$/i, '').replace(/\s+/g, '');
+        // remove símbolos monetários e qualquer caractere não numérico relevante (mantém dígitos, vírgula, ponto e '-')
+        clean = clean.replace(/R\$/i, ''); // remove R$
+        clean = clean.replace(/[^0-9,\.\-]/g, '');
         // agora lida com separadores PT/EN
         if (clean.includes(',') && clean.lastIndexOf(',') > clean.lastIndexOf('.')) {
             clean = clean.replace(/\./g, '').replace(',', '.');
@@ -1306,7 +1307,6 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
                 }
 
                 console.log(`Valores finais - gasto=${gastoNum}, receita=${receitaNum}, lucro=${lucroNum}`);
-                console.log(`Media Buyer: ${BUYER_MAP[buyerCode] || buyerCode}`);
 
                 // Validação final
                 if (isNaN(gastoNum) || isNaN(receitaNum) || isNaN(lucroNum)) {
@@ -1354,6 +1354,7 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
                     }
                 }
 
+                console.log(`Media Buyer: ${buyerCode ? (BUYER_MAP[buyerCode] || buyerCode) : 'N/A (não identificado ainda)'}`);
                 console.log(`Extraído: buyerCode=${buyerCode}, dateStr=${dateStr}, seriesCode=${seriesCode}, accountCode=${accountCode}, siteCode=${siteCode}`);
 
                 // Validações
