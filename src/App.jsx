@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { db } from './firebase';
+import { collection, doc, getDocs, setDoc, writeBatch } from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { DollarSign, TrendingUp, TrendingDown, Target, Upload, Filter, Download, Calendar as CalendarIcon, Users, Tv, BarChart2, AlertCircle, CheckCircle } from 'lucide-react';
 
@@ -810,15 +812,67 @@ export default function App() {
         endDate: ''
     });
 
-    const handleDataImported = (newData, referenceDate) => {
+    const handleDataImported = async (newData, referenceDate) => {
         setAllData(newData);
+        let ref = null;
         if (referenceDate instanceof Date && !isNaN(referenceDate)) {
-            // zera hora para padronizar comparação de 'hoje'
-            const ref = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+            ref = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
             setImportReferenceDate(ref);
         }
+
+        // Persistir no Firestore agrupado por data de referência
+        try {
+            const dateId = (ref || new Date()).toISOString().slice(0,10); // YYYY-MM-DD
+            const importDocRef = doc(collection(db, 'imports'), dateId);
+            await setDoc(importDocRef, { id: dateId });
+            const batch = writeBatch(db);
+            const campaignsCol = collection(importDocRef, 'campaigns');
+            newData.forEach(item => {
+                const campaignRef = doc(campaignsCol, item.id);
+                // Serializar Date -> Timestamp ISO para armazenar
+                const payload = { ...item, data: item.data instanceof Date ? item.data.toISOString() : item.data };
+                batch.set(campaignRef, payload);
+            });
+            await batch.commit();
+            console.log(`Firestore: ${newData.length} campanhas salvas em imports/${dateId}/campaigns`);
+        } catch (err) {
+            console.error('Erro ao salvar no Firestore:', err);
+        }
+
         setActiveTab('Visão Geral');
     };
+
+    // Carregar último import ao iniciar o app
+    useEffect(() => {
+        const loadLatestImport = async () => {
+            try {
+                const importsSnap = await getDocs(collection(db, 'imports'));
+                const importIds = [];
+                importsSnap.forEach(d => importIds.push(d.id));
+                if (importIds.length === 0) return;
+                // IDs no formato YYYY-MM-DD ordenam lexicograficamente
+                importIds.sort();
+                const latestId = importIds[importIds.length - 1];
+                const campaignsSnap = await getDocs(collection(doc(collection(db, 'imports'), latestId), 'campaigns'));
+                const loaded = [];
+                campaignsSnap.forEach(docu => {
+                    const it = docu.data();
+                    loaded.push({
+                        ...it,
+                        data: it.data ? new Date(it.data) : null
+                    });
+                });
+                setAllData(loaded);
+                const [y,m,d] = latestId.split('-').map(n => parseInt(n,10));
+                const ref = new Date(y, m-1, d);
+                setImportReferenceDate(ref);
+                console.log(`Firestore: carregadas ${loaded.length} campanhas do import ${latestId}`);
+            } catch (err) {
+                console.error('Erro ao carregar dados do Firestore:', err);
+            }
+        };
+        loadLatestImport();
+    }, []);
 
     const filteredData = useMemo(() => {
         if (!allData || allData.length === 0) return [];
