@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Editor de Vídeo</title>
+  <style>
+    :root{
+      --brand-primary:#2563EB;
+      --brand-secondary:#06B6D4;
+      --brand-gradient: linear-gradient(90deg, var(--brand-primary), var(--brand-secondary));
+      --brand-surface:#111827; /* dark surface inside editor */
+      --brand-panel:#1F2937;
+      --brand-border:#374151;
+      --text:#E5E7EB;
+      --muted:#9CA3AF;
+      --pill:#111827;
+      --pill-hover:#0B1220;
+      --ok:#10B981; --warn:#F59E0B; --error:#EF4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:#0b0f19;color:var(--text);font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif}
+    .app{display:flex;flex-direction:column;min-height:100%}
+    .topbar{display:flex;gap:.5rem;align-items:center;padding:.75rem 1rem;background:var(--pill);border-bottom:1px solid var(--brand-border);position:sticky;top:0;z-index:10}
+    .title{font-weight:700;font-size:14px;color:#9CA3AF;margin-right:.5rem}
+    .pill{display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border-radius:999px;background:#0f172a;color:#e5e7eb;border:1px solid #243044;cursor:pointer;transition:background .15s ease, filter .15s ease}
+    .pill:hover{background:#111c34}
+    .primary{background:var(--brand-gradient);border:0;color:#fff}
+    .primary:hover{filter:brightness(1.05)}
+    .ghost{background:transparent;border:1px dashed #2b3344}
+    .ghost:hover{background:#0e1526}
+    .content{display:flex;gap:1rem;padding:1rem;height:calc(100vh - 56px)}
+    .panel{width:280px;background:var(--brand-panel);border:1px solid var(--brand-border);border-radius:.75rem;padding:1rem;overflow:auto}
+    .stage{flex:1;display:flex;flex-direction:column;gap:.75rem}
+    .preview{flex:1;background:#000;border:1px solid var(--brand-border);border-radius:.75rem;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+    video{max-width:100%;max-height:100%;}
+    /* 9:16 frame */
+    .frame{position:relative;background:#000;aspect-ratio:9/16;width:min(56vh, 420px);box-shadow:0 0 0 16px #000 inset;border-radius:.75rem}
+    .overlay{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+    .cta{position:absolute;left:50%;transform:translateX(-50%);color:#fff;background:rgba(0,0,0,.45);padding:.5rem .75rem;border-radius:999px;font-weight:600;letter-spacing:.2px}
+    .cta.top{top:24px}
+    .cta.center{top:50%;transform:translate(-50%, -50%)}
+    .cta.bottom{bottom:24px}
+    .play-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .2s ease}
+    .frame:hover .play-center{opacity:1}
+    .play-btn{pointer-events:auto;background:rgba(255,255,255,.9);border:0;border-radius:999px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .play-btn:hover{filter:brightness(1.05)}
+    .timeline{display:flex;align-items:center;gap:.5rem}
+    .timeline input[type="range"]{flex:1}
+    .controls{display:flex;flex-wrap:wrap;gap:.5rem}
+    .group{display:flex;flex-direction:column;gap:.25rem;margin-bottom:.75rem}
+    label{font-size:.825rem;color:var(--muted)}
+    input[type="number"], select, input[type="text"]{background:#0f172a;color:#e5e7eb;border:1px solid #243044;border-radius:.5rem;padding:.45rem .55rem;outline:none}
+    input[type="number"]:focus, select:focus, input[type="text"]:focus{border-color:#33548a;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+    input[type="file"]{display:block}
+    .progress{height:8px;background:#0b1220;border:1px solid #22304a;border-radius:999px;overflow:hidden}
+    .progress > span{display:block;height:100%;background:var(--brand-gradient);width:0%}
+    .hint{font-size:.8rem;color:var(--muted)}
+    .spacer{flex:1}
+    .hidden-input{position:absolute;left:-9999px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <span class="title">Editor de Vídeo</span>
+      <button class="pill" disabled>Reels 9:16</button>
+      <span class="spacer"></span>
+      <label class="pill ghost" for="file">Escolher arquivo</label>
+      <input id="file" type="file" accept="video/*" class="hidden-input" />
+      <button class="pill primary" id="export" disabled>Exportar Vídeo</button>
+    </div>
+
+    <div class="content">
+      <aside class="panel">
+        <div class="group">
+          <label>Corte do vídeo</label>
+          <div style="display:flex; gap:.5rem">
+            <input id="start" type="number" value="0" min="0" step="0.1" placeholder="Início (s)"/>
+            <input id="end" type="number" value="0" min="0" step="0.1" placeholder="Fim (s, 0=fim)"/>
+          </div>
+        </div>
+        <div class="group">
+          <label>Qualidade (CRF)</label>
+          <input id="crf" type="number" min="18" max="35" value="26" />
+        </div>
+        <hr style="border-color:#253248;border-width:1px 0 0;margin:.75rem 0"/>
+        <div class="group">
+          <label>CTA</label>
+          <div style="display:flex; gap:.5rem; flex-wrap:wrap">
+            <input id="ctaText" type="text" placeholder="Texto do CTA (ex: Arraste para cima)" style="flex:1"/>
+            <select id="ctaPos">
+              <option value="bottom">Inferior</option>
+              <option value="center">Centro</option>
+              <option value="top">Superior</option>
+            </select>
+            <input id="ctaStart" type="number" min="0" step="0.1" placeholder="Início (s)" style="width:110px"/>
+            <input id="ctaEnd" type="number" min="0" step="0.1" placeholder="Fim (s)" style="width:110px"/>
+            <input id="ctaColor" type="color" value="#FFFFFF" title="Cor do texto"/>
+            <input id="ctaBg" type="color" value="#000000" title="Cor de fundo"/>
+            <button class="pill" id="addCTA">Adicionar CTA</button>
+          </div>
+        </div>
+        <div class="group">
+          <label>CTAs adicionados</label>
+          <div id="ctaList" class="hint">Nenhum CTA ainda.</div>
+        </div>
+        <div class="group">
+          <div class="hint">Formato fixo: 1080x1920 (Reels). A engine é carregada automaticamente.</div>
+        </div>
+      </aside>
+
+      <section class="stage">
+        <div class="preview">
+          <div class="frame" id="frame">
+            <video id="player" controls playsinline></video>
+            <div class="overlay" id="overlay"></div>
+            <div class="play-center"><button id="playToggle" class="play-btn" title="Barra de espaço para Play/Pause">▶</button></div>
+          </div>
+        </div>
+        <div class="controls">
+          <div class="timeline">
+            <span class="hint" id="curTime">0:00</span>
+            <input id="seek" type="range" min="0" max="0" value="0" step="0.01"/>
+            <span class="hint" id="dur">0:00</span>
+          </div>
+          <div class="progress" style="flex:1"><span id="bar"></span></div>
+          <span id="status" class="hint">Pronto</span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // Lazy load ffmpeg.wasm from CDN
+    let ffmpeg, createFFmpeg;
+    let ffReady = false;
+    let fileBlob = null;
+    const REELS_W = 1080, REELS_H = 1920;
+    const ctas = [];
+
+    const $ = (id) => document.getElementById(id);
+    const status = (t) => { document.getElementById('status').textContent = t; };
+    const progress = (p) => { document.getElementById('bar').style.width = (p*100).toFixed(1)+'%'; };
+
+    async function ensureFFmpeg() {
+      if (ffReady) return;
+      status('Baixando engine...');
+      if (!createFFmpeg) {
+        const mod = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js');
+        createFFmpeg = mod.createFFmpeg;
+      }
+      ffmpeg = createFFmpeg({ log: true, corePath: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js' });
+      ffmpeg.setProgress(({ ratio }) => progress(ratio || 0));
+      await ffmpeg.load();
+      ffReady = true;
+      status('Engine pronta');
+    }
+
+    // Presets
+    // Atualiza overlay no preview conforme CTAs e tempo atual
+    function renderOverlay(time) {
+      const overlay = $('overlay');
+      overlay.innerHTML = '';
+      const t = typeof time === 'number' ? time : ($('player').currentTime || 0);
+      ctas.forEach((c) => {
+        const start = c.start || 0, end = c.end || Number.MAX_SAFE_INTEGER;
+        if (t >= start && t <= end) {
+          const el = document.createElement('div');
+          el.className = `cta ${c.pos}`;
+          el.textContent = c.text;
+          el.style.color = c.color;
+          el.style.background = `${c.bg}CC`; // leve transparência
+          el.style.fontSize = (c.size || 28) + 'px';
+          overlay.appendChild(el);
+        }
+      });
+    }
+
+    // File handling
+    $('file').addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      fileBlob = f;
+      const url = URL.createObjectURL(f);
+      const player = $('player');
+      player.src = url;
+      player.onloadedmetadata = () => {
+        $('seek').max = String(player.duration || 0);
+        $('dur').textContent = formatTime(player.duration || 0);
+        renderOverlay(0);
+      };
+      $('export').disabled = false;
+    });
+
+    // Auto-carregar engine ao abrir a página
+    ensureFFmpeg().catch(console.error);
+
+    // Timeline/seek sync
+    (function attachSeek(){
+      const player = $('player');
+      const seek = $('seek');
+      player.addEventListener('timeupdate', () => {
+        seek.value = String(player.currentTime || 0);
+        $('curTime').textContent = formatTime(player.currentTime || 0);
+        renderOverlay();
+      });
+      seek.addEventListener('input', () => {
+        player.currentTime = parseFloat(seek.value);
+        renderOverlay();
+      });
+    })();
+
+    // Play/Pause central e atalhos
+    (function shortcuts(){
+      const player = $('player');
+      const btn = $('playToggle');
+      const toggle = () => {
+        if (player.paused) { player.play(); btn.textContent = '❚❚'; }
+        else { player.pause(); btn.textContent = '▶'; }
+      };
+      btn.addEventListener('click', (e)=>{ e.preventDefault(); toggle(); });
+      document.addEventListener('keydown', (e) => {
+        if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) return;
+        if (e.code === 'Space') { e.preventDefault(); toggle(); }
+        if (e.key.toLowerCase() === 's') { $('start').value = String(player.currentTime.toFixed(2)); }
+        if (e.key.toLowerCase() === 'e') { $('end').value = String(player.currentTime.toFixed(2)); }
+      });
+    })();
+
+    // CTA handling
+    $('addCTA').addEventListener('click', () => {
+      const text = $('ctaText').value?.trim();
+      if (!text) return alert('Informe o texto do CTA.');
+      const pos = $('ctaPos').value;
+      const start = parseFloat($('ctaStart').value||'0');
+      const end = parseFloat($('ctaEnd').value||'0');
+      const color = $('ctaColor').value || '#FFFFFF';
+      const bg = $('ctaBg').value || '#000000';
+      const size = 28;
+      ctas.push({ text, pos, start, end, color, bg, size });
+      $('ctaText').value = '';
+      $('ctaStart').value = '';
+      $('ctaEnd').value = '';
+      refreshCtaList();
+      renderOverlay();
+    });
+
+    function refreshCtaList(){
+      const box = $('ctaList');
+      if (!ctas.length) { box.textContent = 'Nenhum CTA ainda.'; return; }
+      box.innerHTML = '';
+      ctas.forEach((c, i) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex'; row.style.gap = '.5rem'; row.style.alignItems = 'center'; row.style.marginBottom = '.25rem';
+        row.innerHTML = `<span>#${i+1}</span><span>"${c.text}"</span><span class="hint">${c.start||0}s → ${c.end||'fim'}s</span><span class="hint">${c.pos}</span>`;
+        const del = document.createElement('button'); del.className='pill'; del.textContent='Remover';
+        del.onclick = () => { ctas.splice(i,1); refreshCtaList(); renderOverlay(); };
+        row.appendChild(del);
+        box.appendChild(row);
+      });
+    }
+
+    function formatTime(s){
+      s = Math.max(0, s||0);
+      const m = Math.floor(s/60); const ss = Math.floor(s%60).toString().padStart(2,'0');
+      return `${m}:${ss}`;
+    }
+
+    // Export
+    $('export').addEventListener('click', async () => {
+      try {
+        if (!fileBlob) return alert('Selecione um vídeo.');
+        await ensureFFmpeg();
+        status('Preparando...'); progress(0);
+        const exportBtn = $('export');
+        const prevLabel = exportBtn.textContent;
+        exportBtn.textContent = 'Exportando...';
+        exportBtn.disabled = true;
+
+        const inputName = 'input.mp4';
+        const outName = 'export.mp4';
+        const start = parseFloat($('start').value || '0');
+        const end = parseFloat($('end').value || '0');
+        const crf = parseInt($('crf').value || '26', 10);
+        const w = REELS_W, h = REELS_H;
+
+        // Write input
+        const data = new Uint8Array(await fileBlob.arrayBuffer());
+        ffmpeg.FS('writeFile', inputName, data);
+
+        // Ensure a font is available for drawtext
+        try {
+          const fontUrl = 'https://cdn.jsdelivr.net/gh/dejavu-fonts/dejavu-fonts-ttf@2.37/ttf/DejaVuSans.ttf';
+          const fontResp = await fetch(fontUrl);
+          const fontBuf = new Uint8Array(await fontResp.arrayBuffer());
+          ffmpeg.FS('writeFile', 'DejaVuSans.ttf', fontBuf);
+        } catch(e) {
+          console.warn('Falha ao carregar fonte, drawtext pode usar fallback.', e);
+        }
+
+        // Build filters: scale/pad to target while preserving aspect via ffmpeg's scale with force_original_aspect_ratio
+        const filters = [`scale=${w}:${h}:force_original_aspect_ratio=decrease`, `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:black`, 'format=yuv420p'];
+        // Append drawtext for each CTA
+        ctas.forEach((c) => {
+          const s = isNaN(c.start) ? 0 : c.start;
+          const e = isNaN(c.end) || c.end===0 ? 1e9 : c.end;
+          let yExpr = 'h-200';
+          if (c.pos === 'top') yExpr = '50';
+          if (c.pos === 'center') yExpr = '(h-text_h)/2';
+          const boxColor = (c.bg||'#000000').replace('#','0x') + '@0.5';
+          const fontColor = (c.color||'#FFFFFF');
+          const text = (c.text||'').replace(/:/g,'\\:').replace(/'/g,"\\'");
+          const expr = `drawtext=fontfile=DejaVuSans.ttf:text='${text}':fontsize=${c.size||28}:fontcolor=${fontColor}:x=(w-text_w)/2:y=${yExpr}:box=1:boxcolor=${fontColor==='white'?'black@0.5':'black@0.5'}:boxborderw=20:enable='between(t,${s},${e})'`;
+          filters.push(expr);
+        });
+        const vf = filters.join(',');
+
+        const args = [];
+        if (!isNaN(start) && start > 0) { args.push('-ss', String(start)); }
+        args.push('-i', inputName);
+        if (!isNaN(end) && end > 0) { args.push('-to', String(end)); }
+        args.push('-vf', vf, '-c:v', 'libx264', '-crf', String(crf), '-preset', 'veryfast', '-c:a', 'aac', '-b:a', '128k', outName);
+
+        status('Renderizando...');
+        await ffmpeg.run(...args);
+        const out = ffmpeg.FS('readFile', outName);
+        const blob = new Blob([out.buffer], { type: 'video/mp4' });
+
+        // Send to parent via postMessage
+        window.parent?.postMessage({
+          type: 'video-export',
+          name: 'video-' + Date.now() + '.mp4',
+          blob,
+          meta: { start, end, resolution: `${w}x${h}`, crf }
+        }, '*');
+        status('Export concluído'); progress(1);
+        exportBtn.textContent = prevLabel;
+        exportBtn.disabled = false;
+      } catch (e) {
+        console.error(e);
+        status('Falha na exportação');
+        alert('Erro ao exportar: ' + (e?.message||e));
+        const exportBtn = $('export');
+        exportBtn.textContent = 'Exportar Vídeo';
+        exportBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

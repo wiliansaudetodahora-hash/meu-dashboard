@@ -2314,7 +2314,7 @@ export default function App() {
             'Análises': <Analises data={filteredData} />, 
             'Importar Dados': <ImportarDados onDataImported={handleDataImported} currentDataCount={allData.length} />, 
             'Editor de Imagens': (
-                <div className="w-full -mx-4 sm:-mx-6 lg:-mx-10" style={{ height: 'calc(100vh - 180px)' }}>
+                <div className="w-full" style={{ height: 'calc(100vh - 90px)' }}>
                     <iframe
                         title="Editor de Imagens"
                         src="/editor/index.html"
@@ -2326,13 +2326,17 @@ export default function App() {
             ),
         };
 
+        const isImmersive = false;
+
         return (
             <div className="bg-slate-50 min-h-screen font-sans text-gray-800">
-                <div className="w-full px-4 sm:px-6 lg:px-10 py-4">
-                    <header className="mb-6">
-                        <h1 className="text-2xl font-bold text-gray-800">Dashboard de Performance dos Media Buyers</h1>
-                        <p className="text-sm text-gray-500">Análise abrangente para arbitragem de tráfego pago</p>
-                    </header>
+                <div className={`w-full px-4 sm:px-6 lg:px-10 py-4 ${activeTab === 'Editor de Imagens' ? 'h-screen' : 'min-h-screen'} flex flex-col`}>
+                    {activeTab !== 'Editor de Imagens' && (
+                        <header className="mb-6">
+                            <h1 className="text-2xl font-bold text-gray-800">Dashboard de Performance dos Media Buyers</h1>
+                            <p className="text-sm text-gray-500">Análise abrangente para arbitragem de tráfego pago</p>
+                        </header>
+                    )}
                     <nav className="mb-6 sticky top-0 z-20">
                         <div className="overflow-x-auto">
                             <div className="flex gap-2 p-1 bg-[var(--brand-surface)] backdrop-blur border border-[var(--brand-border)] rounded-xl shadow-sm">
@@ -2358,10 +2362,10 @@ export default function App() {
                             </div>
                         </div>
                     </nav>
-                <main>
-                    {TABS[activeTab]}
-                </main>
+                    <main className="flex-1 min-h-0 overflow-auto">
+                        {TABS[activeTab]}
+                    </main>
+                </div>
             </div>
-        </div>
-    );
+        );
 }
