@@ -13,10 +13,18 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase only once
-const app = initializeApp(firebaseConfig);
+// Flag indicando se todas as variáveis foram definidas
+export const firebaseReady = Object.values(firebaseConfig).every(Boolean);
+if (!firebaseReady) {
+  console.warn('[Firebase] Variáveis VITE_FIREBASE_* ausentes/incompletas. Operações Firestore serão ignoradas.');
+}
 
-// Firestore DB
-export const db = getFirestore(app);
+let app = null;
+let dbInstance = null;
+if (firebaseReady) {
+  app = initializeApp(firebaseConfig);
+  dbInstance = getFirestore(app);
+}
 
+export const db = dbInstance; // null quando não configurado
 export default app;

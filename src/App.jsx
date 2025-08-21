@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { db } from './firebase';
-import { collection, doc, getDocs, setDoc, writeBatch } from 'firebase/firestore';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { db, firebaseReady } from './firebase';
+import { collection, doc, getDocs, setDoc, writeBatch, deleteDoc } from 'firebase/firestore';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, ComposedChart } from 'recharts';
 import { DollarSign, TrendingUp, TrendingDown, Target, Upload, Filter, Download, Calendar as CalendarIcon, Users, Tv, BarChart2, AlertCircle, CheckCircle } from 'lucide-react';
 
 // --- CONFIGURAÇÕES PERSONALIZADAS DA EMPRESA ---
@@ -177,10 +177,293 @@ const KpiCard = ({ icon: Icon, title, value, color, isCurrency = true }) => (
 
 // --- ABAS DO DASHBOARD ---
 
+// Comparação entre dois dias (layout simplificado)
+const CompararDias = ({ data, onDeleteDay }) => {
+    const [dateA, setDateA] = useState('');
+    const [dateB, setDateB] = useState('');
+    const [buyerFilter, setBuyerFilter] = useState('all');
+    const [serieFilter, setSerieFilter] = useState('all');
+    const [siteFilter, setSiteFilter] = useState('all');
+    const [showAllChanges, setShowAllChanges] = useState(false);
+
+    const makeDayKey = (dt) => {
+        if (!(dt instanceof Date) || isNaN(dt)) return null;
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    
+
+    const daysAvailable = useMemo(() => {
+        const set = new Set();
+        data.forEach(it => {
+            const key = makeDayKey(it.data instanceof Date ? it.data : new Date(it.data));
+            if (key) set.add(key);
+        });
+        return Array.from(set).sort();
+    }, [data]);
+
+    const buyerOptions = useMemo(() => Array.from(new Set(data.map(d => d.mediaBuyer))).sort(), [data]);
+    const serieOptions = useMemo(() => Array.from(new Set(data.map(d => d.serie))).sort(), [data]);
+    const siteOptions = useMemo(() => Array.from(new Set(data.map(d => d.site || 'N/A'))).sort(), [data]);
+
+    useEffect(() => {
+        if (!dateA && daysAvailable.length) setDateA(daysAvailable[daysAvailable.length - 2] || daysAvailable[0]);
+        if (!dateB && daysAvailable.length) setDateB(daysAvailable[daysAvailable.length - 1]);
+    }, [daysAvailable]);
+
+    const byDay = useMemo(() => {
+        const map = {};
+        data.forEach(it => {
+            const key = makeDayKey(it.data instanceof Date ? it.data : new Date(it.data));
+            if (!key) return;
+            if (!map[key]) map[key] = [];
+            map[key].push(it);
+        });
+        return map;
+    }, [data]);
+
+    const computeKpis = (arr) => {
+        if (!arr || !arr.length) return { gastos:0, receita:0, lucro:0, roi:0, totalCampanhas:0 };
+        const tot = arr.reduce((a, it) => ({
+            gastos: a.gastos + it.gastos,
+            receita: a.receita + it.receita,
+            lucro: a.lucro + it.lucro
+        }), {gastos:0, receita:0, lucro:0});
+        const roi = tot.gastos > 0 ? (tot.lucro / tot.gastos) * 100 : 0;
+        return { ...tot, roi, totalCampanhas: arr.length };
+    };
+
+    const applyFilters = (arr) => arr.filter(it => (
+        (buyerFilter === 'all' || it.mediaBuyer === buyerFilter) &&
+        (serieFilter === 'all' || it.serie === serieFilter) &&
+        (siteFilter === 'all' || (it.site || 'N/A') === siteFilter)
+    ));
+
+    const dayADataRaw = byDay[dateA] || [];
+    const dayBDataRaw = byDay[dateB] || [];
+    const dayAData = applyFilters(dayADataRaw);
+    const dayBData = applyFilters(dayBDataRaw);
+    const kpiA = computeKpis(dayAData);
+    const kpiB = computeKpis(dayBData);
+    const delta = {
+        gastos: kpiB.gastos - kpiA.gastos,
+        receita: kpiB.receita - kpiA.receita,
+        lucro: kpiB.lucro - kpiA.lucro,
+        roi: kpiB.roi - kpiA.roi,
+        totalCampanhas: kpiB.totalCampanhas - kpiA.totalCampanhas,
+    };
+
+    // Compare mesma campanha (id) entre os dois dias
+    const campCompare = useMemo(() => {
+        const mapA = new Map(dayAData.map(it => [it.id, it]));
+        const rows = [];
+        dayBData.forEach(b => {
+            const a = mapA.get(b.id);
+            if (a) {
+                const roiA = a.gastos > 0 ? (a.lucro / a.gastos) * 100 : 0;
+                const roiB = b.gastos > 0 ? (b.lucro / b.gastos) * 100 : 0;
+                rows.push({
+                    id: b.id,
+                    buyer: b.mediaBuyer,
+                    serie: b.serie,
+                    gastosA: a.gastos, gastosB: b.gastos,
+                    receitaA: a.receita, receitaB: b.receita,
+                    lucroA: a.lucro, lucroB: b.lucro,
+                    roiA, roiB,
+                });
+            }
+        });
+        return rows.sort((x,y) => (y.lucroB - y.lucroA) - (x.lucroB - x.lucroA));
+    }, [dateA, dateB, byDay]);
+
+    // Top mudanças (por Δ Lucro desc)
+    const topChanges = useMemo(() => {
+        return campCompare
+            .map(r => ({
+                ...r,
+                dG: r.gastosB - r.gastosA,
+                dR: r.receitaB - r.receitaA,
+                dL: r.lucroB - r.lucroA,
+                dROI: r.roiB - r.roiA,
+            }))
+            .sort((a,b) => b.dL - a.dL);
+    }, [campCompare]);
+
+    const formatCurrency = (v) => `R$ ${Math.abs(v).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+    const deltaBadge = (v) => (
+        <span className={`ml-2 text-xs px-2 py-0.5 rounded ${v===0?'bg-gray-100 text-gray-700': v>0?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>
+            {v>0?'+':''}{v.toLocaleString('pt-BR', {maximumFractionDigits: 2})}
+        </span>
+    );
+
+    return (
+        <div className="space-y-4">
+            {/* Filtros compactos */}
+            <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+                    <div className="relative">
+                        <label className="text-sm text-gray-600">Dia A</label>
+                        <select className="w-full border rounded-md p-1.5 text-sm mt-1" value={dateA} onChange={e=>setDateA(e.target.value)}>
+                            <option value="">Escolha…</option>
+                            {daysAvailable.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                        {onDeleteDay && dateA && (
+                            <button
+                                type="button"
+                                className="mt-2 text-xs text-red-600 hover:underline"
+                                onClick={async () => {
+                                    if (confirm(`Apagar todos os dados do dia ${dateA}? Esta ação não pode ser desfeita.`)) {
+                                        await onDeleteDay(dateA);
+                                        setDateA('');
+                                    }
+                                }}
+                            >Apagar Dia A</button>
+                        )}
+                    </div>
+                    <div className="relative">
+                        <label className="text-sm text-gray-600">Dia B</label>
+                        <select className="w-full border rounded-md p-1.5 text-sm mt-1" value={dateB} onChange={e=>setDateB(e.target.value)}>
+                            <option value="">Escolha…</option>
+                            {daysAvailable.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                        {onDeleteDay && dateB && (
+                            <button
+                                type="button"
+                                className="mt-2 text-xs text-red-600 hover:underline"
+                                onClick={async () => {
+                                    if (confirm(`Apagar todos os dados do dia ${dateB}? Esta ação não pode ser desfeita.`)) {
+                                        await onDeleteDay(dateB);
+                                        setDateB('');
+                                    }
+                                }}
+                            >Apagar Dia B</button>
+                        )}
+                    </div>
+                    <div>
+                        <label className="text-sm text-gray-600">Media Buyer</label>
+                        <select className="w-full border rounded-md p-1.5 text-sm mt-1" value={buyerFilter} onChange={e=>setBuyerFilter(e.target.value)}>
+                            <option value="all">Todos</option>
+                            {buyerOptions.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-sm text-gray-600">Série</label>
+                        <select className="w-full border rounded-md p-1.5 text-sm mt-1" value={serieFilter} onChange={e=>setSerieFilter(e.target.value)}>
+                            <option value="all">Todas</option>
+                            {serieOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-sm text-gray-600">Site</label>
+                        <select className="w-full border rounded-md p-1.5 text-sm mt-1" value={siteFilter} onChange={e=>setSiteFilter(e.target.value)}>
+                            <option value="all">Todos</option>
+                            {siteOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {/* KPIs lado a lado com deltas claros */}
+            {(dateA && dateB) && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <h4 className="font-semibold text-gray-700 mb-2">Dia A ({dateA})</h4>
+                        <ul className="text-sm space-y-1">
+                            <li><strong>Lucro:</strong> <span className={kpiA.lucro>=0?'text-green-600':'text-red-600'}>{formatCurrency(kpiA.lucro)}</span></li>
+                            <li><strong>ROI:</strong> {kpiA.roi.toFixed(1)}%</li>
+                            <li><strong>Receita:</strong> {formatCurrency(kpiA.receita)}</li>
+                            <li><strong>Gasto:</strong> {formatCurrency(kpiA.gastos)}</li>
+                            <li><strong>Campanhas:</strong> {kpiA.totalCampanhas}</li>
+                        </ul>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <h4 className="font-semibold text-gray-700 mb-2">Dia B ({dateB})</h4>
+                        <ul className="text-sm space-y-1">
+                            <li><strong>Lucro:</strong> <span className={kpiB.lucro>=0?'text-green-600':'text-red-600'}>{formatCurrency(kpiB.lucro)}</span> {deltaBadge(delta.lucro)}</li>
+                            <li><strong>ROI:</strong> {kpiB.roi.toFixed(1)}% {deltaBadge(delta.roi)}</li>
+                            <li><strong>Receita:</strong> {formatCurrency(kpiB.receita)} {deltaBadge(delta.receita)}</li>
+                            <li><strong>Gasto:</strong> {formatCurrency(kpiB.gastos)} {deltaBadge(delta.gastos)}</li>
+                            <li><strong>Campanhas:</strong> {kpiB.totalCampanhas} {deltaBadge(delta.totalCampanhas)}</li>
+                        </ul>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <h4 className="font-semibold text-gray-700 mb-2">Resumo rápido</h4>
+                        <p className="text-sm text-gray-600">Foque nas mudanças com maior impacto de Lucro. Veja o Top abaixo.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Top Mudanças (conciso) */}
+            {(dateA && dateB) && (
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                    <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-semibold text-gray-700">Top mudanças por Lucro — {dateA} vs {dateB}</h4>
+                        <div className="flex items-center gap-3 text-sm">
+                            <span className="text-gray-500">{topChanges.length} campanhas</span>
+                            <button className="text-blue-600 hover:underline" onClick={() => setShowAllChanges(v=>!v)}>
+                                {showAllChanges ? 'Mostrar Top 10' : 'Ver todas'}
+                            </button>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="bg-gray-50 text-gray-600">
+                                    <th className="p-2 text-left">Campanha</th>
+                                    <th className="p-2 text-left">Buyer</th>
+                                    <th className="p-2 text-left">Série</th>
+                                    <th className="p-2 text-right">Δ Lucro</th>
+                                    <th className="p-2 text-right">Lucro A</th>
+                                    <th className="p-2 text-right">Lucro B</th>
+                                    <th className="p-2 text-right">Δ ROI</th>
+                                    <th className="p-2 text-right">Δ Receita</th>
+                                    <th className="p-2 text-right">Δ Gasto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(showAllChanges ? topChanges : topChanges.slice(0,10)).map(r => (
+                                    <tr key={r.id} className="border-t">
+                                        <td className="p-2 whitespace-nowrap">{r.id}</td>
+                                        <td className="p-2 whitespace-nowrap">{r.buyer}</td>
+                                        <td className="p-2 whitespace-nowrap">{r.serie}</td>
+                                        <td className={`p-2 text-right ${r.dL>0?'text-green-600':r.dL<0?'text-red-600':'text-gray-600'}`}>{r.dL>0?'+':''}{r.dL.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+                                        <td className={`p-2 text-right ${r.lucroA>=0?'text-green-600':'text-red-600'}`}>{formatCurrency(r.lucroA)}</td>
+                                        <td className={`p-2 text-right ${r.lucroB>=0?'text-green-600':'text-red-600'}`}>{formatCurrency(r.lucroB)}</td>
+                                        <td className={`p-2 text-right ${r.dROI>0?'text-green-600':r.dROI<0?'text-red-600':'text-gray-600'}`}>{r.dROI>0?'+':''}{r.dROI.toFixed(1)}%</td>
+                                        <td className={`p-2 text-right ${r.dR>0?'text-green-600':r.dR<0?'text-red-600':'text-gray-600'}`}>{r.dR>0?'+':''}{r.dR.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+                                        <td className={`p-2 text-right ${r.dG>0?'text-green-600':r.dG<0?'text-red-600':'text-gray-600'}`}>{r.dG>0?'+':''}{r.dG.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Removido o detalhamento Série×Buyer para manter a aba concisa
+
 const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, importReferenceDate }) => {
+    // Visibilidade das séries do gráfico
+    const [showReceita, setShowReceita] = useState(false);
+    const [showGasto, setShowGasto] = useState(false);
+    const [showLucro, setShowLucro] = useState(true);
+    const [showMA7, setShowMA7] = useState(true);
+
+    // Controles locais do gráfico (independentes dos filtros globais)
+    const [chartSerie, setChartSerie] = useState('all');
+    const [chartDays, setChartDays] = useState(7); // 2,3,4,5,6,7,15,30 ou 'all'
+
     const trendData = useMemo(() => {
         if (data.length === 0) return [];
-        const sorted = [...data].sort((a, b) => a.data - b.data);
+        // Filtrar por série local (se selecionada)
+        const base = chartSerie && chartSerie !== 'all' ? data.filter(d => d.serie === chartSerie) : data;
+        const sorted = [...base].sort((a, b) => a.data - b.data);
         const daily = {};
         sorted.forEach(d => {
             const y = d.data.getFullYear();
@@ -191,16 +474,66 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, imp
             daily[dayKey].receita += d.receita;
             daily[dayKey].gasto += d.gastos;
         });
-        return Object.entries(daily).map(([dateKey, values]) => {
+        // montar vetor ordenado com Lucro e depois calcular média móvel de 7 dias
+        const arr = Object.entries(daily).sort((a, b) => a[0].localeCompare(b[0])).map(([dateKey, values]) => {
             const [yy, mm, dd] = dateKey.split('-').map(n => parseInt(n, 10));
             const localDate = new Date(yy, mm - 1, dd);
+            const lucro = values.receita - values.gasto;
             return {
+                dateKey,
                 date: localDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
                 Receita: values.receita,
                 Gasto: values.gasto,
+                Lucro: lucro,
             };
         });
-    }, [data]);
+        // calcular SMA 7 do Lucro
+        const window = 7;
+        for (let i = 0; i < arr.length; i++) {
+            let sum = 0, count = 0;
+            for (let j = Math.max(0, i - window + 1); j <= i; j++) {
+                sum += arr[j].Lucro;
+                count++;
+            }
+            arr[i].LucroMA7 = count > 0 ? sum / count : null;
+        }
+        // Limitar por quantidade de dias (últimos N dias distintos)
+        let limited = arr;
+        if (chartDays && typeof chartDays === 'number') {
+            limited = arr.slice(Math.max(0, arr.length - chartDays));
+        }
+        return limited;
+    }, [data, chartSerie, chartDays]);
+
+    // Component interno para toggles de séries
+    const TrendToggles = () => (
+        <div className="flex flex-wrap gap-2 mb-2">
+            <button
+                onClick={() => setShowLucro(v => !v)}
+                className={`text-xs px-2 py-1 rounded border ${showLucro ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-700 border-gray-300'}`}
+            >
+                Lucro
+            </button>
+            <button
+                onClick={() => setShowMA7(v => !v)}
+                className={`text-xs px-2 py-1 rounded border ${showMA7 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-white text-gray-700 border-gray-300'}`}
+            >
+                Lucro (MM7)
+            </button>
+            <button
+                onClick={() => setShowReceita(v => !v)}
+                className={`text-xs px-2 py-1 rounded border ${showReceita ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-700 border-gray-300'}`}
+            >
+                Receita (barra)
+            </button>
+            <button
+                onClick={() => setShowGasto(v => !v)}
+                className={`text-xs px-2 py-1 rounded border ${showGasto ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-white text-gray-700 border-gray-300'}`}
+            >
+                Gasto (barra)
+            </button>
+        </div>
+    );
 
     const receitaPorSerie = useMemo(() => {
         if (data.length === 0) return [];
@@ -214,82 +547,123 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, imp
             .sort((a, b) => b.value - a.value);
     }, [data]);
 
-    // Sistema de recomendação inteligente
-    const smartRecommendations = useMemo(() => {
+    // Controle local: recomendações por Media Buyer
+    const [recBuyer, setRecBuyer] = useState('all');
+
+    // Sistema de recomendação inteligente por Media Buyer (robustecido)
+    const smartRecommendationsByBuyer = useMemo(() => {
         if (data.length === 0) return [];
-        
         const now = new Date();
         const last7Days = new Date(now);
         last7Days.setDate(now.getDate() - 7);
         const last30Days = new Date(now);
         last30Days.setDate(now.getDate() - 30);
-        
-        // Analisar performance das séries nos últimos 7 e 30 dias
-        const seriesAnalysis = {};
-        
+
+        // Agrupar por Media Buyer e Série
+        const buyerSeries = {};
         data.forEach(d => {
             const itemDate = new Date(d.data);
-            if (!seriesAnalysis[d.serie]) {
-                seriesAnalysis[d.serie] = {
+            const buyer = d.mediaBuyer || d.mediaBuyerCode || 'N/A';
+            const serie = d.serie;
+            if (!buyerSeries[buyer]) buyerSeries[buyer] = {};
+            if (!buyerSeries[buyer][serie]) {
+                buyerSeries[buyer][serie] = {
                     recent: { gastos: 0, receita: 0, lucro: 0, campanhas: 0, roiList: [] },
                     historical: { gastos: 0, receita: 0, lucro: 0, campanhas: 0, roiList: [] }
                 };
             }
-            
             const roi = d.gastos > 0 ? (d.lucro / d.gastos) * 100 : 0;
-            
             if (itemDate >= last7Days) {
-                seriesAnalysis[d.serie].recent.gastos += d.gastos;
-                seriesAnalysis[d.serie].recent.receita += d.receita;
-                seriesAnalysis[d.serie].recent.lucro += d.lucro;
-                seriesAnalysis[d.serie].recent.campanhas += 1;
-                seriesAnalysis[d.serie].recent.roiList.push(roi);
+                buyerSeries[buyer][serie].recent.gastos += d.gastos;
+                buyerSeries[buyer][serie].recent.receita += d.receita;
+                buyerSeries[buyer][serie].recent.lucro += d.lucro;
+                buyerSeries[buyer][serie].recent.campanhas += 1;
+                buyerSeries[buyer][serie].recent.roiList.push(roi);
             }
-            
             if (itemDate >= last30Days) {
-                seriesAnalysis[d.serie].historical.gastos += d.gastos;
-                seriesAnalysis[d.serie].historical.receita += d.receita;
-                seriesAnalysis[d.serie].historical.lucro += d.lucro;
-                seriesAnalysis[d.serie].historical.campanhas += 1;
-                seriesAnalysis[d.serie].historical.roiList.push(roi);
+                buyerSeries[buyer][serie].historical.gastos += d.gastos;
+                buyerSeries[buyer][serie].historical.receita += d.receita;
+                buyerSeries[buyer][serie].historical.lucro += d.lucro;
+                buyerSeries[buyer][serie].historical.campanhas += 1;
+                buyerSeries[buyer][serie].historical.roiList.push(roi);
             }
         });
-        
-        // Calcular score de recomendação
-        const recommendations = Object.entries(seriesAnalysis)
-            .map(([serie, analysis]) => {
-                const recentROI = analysis.recent.roiList.length > 0 
-                    ? analysis.recent.roiList.reduce((a, b) => a + b, 0) / analysis.recent.roiList.length 
-                    : 0;
-                const historicalROI = analysis.historical.roiList.length > 0 
-                    ? analysis.historical.roiList.reduce((a, b) => a + b, 0) / analysis.historical.roiList.length 
-                    : 0;
-                
-                const recentLucro = analysis.recent.lucro;
-                const trend = recentROI - historicalROI; // Tendência de melhora
-                const consistency = analysis.recent.campanhas >= 3 ? 1 : 0.5; // Consistência de dados
-                const profitability = recentLucro > 0 ? 1 : 0; // Lucratividade
-                
-                // Score composto: ROI recente (40%) + Tendência (30%) + Lucro (20%) + Consistência (10%)
-                const score = (recentROI * 0.4) + (trend * 0.3) + (recentLucro * 0.0001 * 0.2) + (consistency * 10);
-                
-                return {
-                    serie,
-                    score,
-                    recentROI,
-                    historicalROI,
-                    trend,
-                    recentLucro,
-                    recentCampanhas: analysis.recent.campanhas,
-                    confidence: analysis.recent.campanhas >= 5 ? 'Alta' : analysis.recent.campanhas >= 3 ? 'Média' : 'Baixa'
-                };
-            })
-            .filter(r => r.recentCampanhas > 0) // Apenas séries com atividade recente
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 4); // Top 4 recomendações
-            
-        return recommendations;
-    }, [data]);
+
+        // Helpers estatísticos
+        const winsorize = (arr, p = 0.05) => {
+            if (!arr || arr.length === 0) return [];
+            const sorted = [...arr].sort((a,b)=>a-b);
+            const loIdx = Math.floor(sorted.length * p);
+            const hiIdx = Math.ceil(sorted.length * (1 - p)) - 1;
+            const lo = sorted[Math.max(0, Math.min(sorted.length - 1, loIdx))];
+            const hi = sorted[Math.max(0, Math.min(sorted.length - 1, hiIdx))];
+            return arr.map(v => Math.max(lo, Math.min(hi, v)));
+        };
+        const mean = (arr) => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+        const stddev = (arr) => {
+            if (!arr || arr.length < 2) return 0;
+            const m = mean(arr);
+            const v = arr.reduce((s,x)=>s + Math.pow(x - m, 2), 0) / (arr.length - 1);
+            return Math.sqrt(v);
+        };
+
+        // Calcular score por buyer/serie e ordenar top N por buyer
+        const groups = Object.entries(buyerSeries).map(([buyer, seriesMap]) => {
+            const recs = Object.entries(seriesMap)
+                .map(([serie, analysis]) => {
+                    // ROI ponderado por gasto (robusto) e estatísticas com outliers winsorizados
+                    const recentROI = analysis.recent.gastos > 0 ? (analysis.recent.lucro / analysis.recent.gastos) * 100 : 0;
+                    const historicalROI = analysis.historical.gastos > 0 ? (analysis.historical.lucro / analysis.historical.gastos) * 100 : 0;
+                    const recentRoiWins = winsorize(analysis.recent.roiList);
+                    const recentStd = stddev(recentRoiWins);
+                    const recentLucro = analysis.recent.lucro;
+                    const trend = recentROI - historicalROI;
+                    const minSpendOk = analysis.recent.gastos >= 200; // threshold mínimo de gasto
+                    const minCampsOk = analysis.recent.campanhas >= 2; // threshold mínimo de campanhas
+                    const consistency = analysis.recent.campanhas >= 5 ? 1 : analysis.recent.campanhas >= 3 ? 0.7 : 0.4;
+                    const volatilityPenalty = 0.2 * recentStd; // penaliza alta volatilidade
+                    const baseScore = (recentROI * 0.4) + (trend * 0.4) + (recentLucro * 0.0001 * 0.1) + (consistency * 8) - volatilityPenalty;
+                    const score = (minSpendOk && minCampsOk) ? baseScore : baseScore * 0.6; // penaliza se não atingir mínimos
+
+                    // Uplift esperado de lucro para +20% de budget (com cap)
+                    const addSpend = Math.min(1000, analysis.recent.gastos * 0.2);
+                    const expectedROIAdj = Math.max(0, recentROI - Math.max(0, recentStd * 0.5));
+                    const expectedUpliftLucro = (expectedROIAdj / 100) * addSpend;
+
+                    // Confiança
+                    const confidence = (analysis.recent.campanhas >= 5 && analysis.recent.gastos >= 500 && recentStd < 15)
+                        ? 'Alta'
+                        : (analysis.recent.campanhas >= 3 && analysis.recent.gastos >= 200)
+                            ? 'Média'
+                            : 'Baixa';
+                    return {
+                        buyer,
+                        serie,
+                        score,
+                        recentROI,
+                        historicalROI,
+                        trend,
+                        recentLucro,
+                        recentCampanhas: analysis.recent.campanhas,
+                        confidence,
+                        recentStd,
+                        expectedUpliftLucro,
+                        expectedROIAdj,
+                        recentGastos: analysis.recent.gastos
+                    };
+                })
+                .filter(r => r.recentCampanhas > 0)
+                // Ordenar por uplift esperado, depois score
+                .sort((a, b) => (b.expectedUpliftLucro - a.expectedUpliftLucro) || (b.score - a.score))
+                .slice(0, 4);
+            return { buyer, recommendations: recs };
+        });
+
+        // Filtrar por buyer selecionado
+        const filtered = recBuyer && recBuyer !== 'all' ? groups.filter(g => g.buyer === recBuyer) : groups;
+        // Remover grupos vazios
+        return filtered.filter(g => g.recommendations.length > 0);
+    }, [data, recBuyer]);
 
     return (
         <>
@@ -349,8 +723,8 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, imp
                 </div>
             </div>
             
-            {/* Sistema de Recomendação Inteligente */}
-            {smartRecommendations.length > 0 && (
+            {/* Sistema de Recomendação Inteligente por Media Buyer */}
+            {smartRecommendationsByBuyer.length > 0 && (
                 <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl shadow-sm border border-purple-200 p-6 mb-6">
                     <div className="flex items-center mb-4">
                         <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-full p-2 mr-3">
@@ -358,12 +732,30 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, imp
                         </div>
                         <div>
                             <h3 className="text-lg font-bold text-gray-800">🧠 Recomendações Inteligentes do Dia</h3>
-                            <p className="text-sm text-gray-600">Análise baseada em performance dos últimos 7 dias vs. histórico de 30 dias</p>
+                            <p className="text-sm text-gray-600">Análise por Media Buyer (últimos 7 dias vs. histórico de 30 dias)</p>
                         </div>
                     </div>
+
+                    {/* Controle local: selecionar Media Buyer */}
+                    <div className="mb-4">
+                        <label className="text-xs text-gray-600 mr-2">Media Buyer:</label>
+                        <select
+                            value={recBuyer}
+                            onChange={(e) => setRecBuyer(e.target.value)}
+                            className="text-xs border rounded px-2 py-1"
+                        >
+                            <option value="all">Todos</option>
+                            {allBuyers.map(b => (
+                                <option key={b} value={b}>{b}</option>
+                            ))}
+                        </select>
+                    </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {smartRecommendations.map((rec, index) => {
+                    {smartRecommendationsByBuyer.map(group => (
+                        <div key={group.buyer} className="mb-4">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-2">Media Buyer: {group.buyer}</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {group.recommendations.map((rec, index) => {
                             const getRecommendationIcon = (idx) => {
                                 if (idx === 0) return { icon: '🎯', class: 'from-green-400 to-emerald-500', text: 'FOCO MÁXIMO' };
                                 if (idx === 1) return { icon: '⭐', class: 'from-blue-400 to-indigo-500', text: 'ALTA PRIORIDADE' };
@@ -376,7 +768,7 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, imp
                             const trendColor = rec.trend > 0 ? 'text-green-600' : rec.trend < 0 ? 'text-red-600' : 'text-gray-600';
                             
                             return (
-                                <div key={rec.serie} className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-lg transition-shadow">
+                                <div key={`${group.buyer}-${rec.serie}`} className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-lg transition-shadow">
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center space-x-2">
                                             <div className={`bg-gradient-to-r ${recIcon.class} rounded-full w-8 h-8 flex items-center justify-center text-white text-sm font-bold`}>
@@ -384,7 +776,7 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, imp
                                             </div>
                                             <div>
                                                 <h4 className="font-semibold text-gray-800 text-sm">{rec.serie}</h4>
-                                                <p className="text-xs text-gray-500">{recIcon.text}</p>
+                                                <p className="text-[11px] text-gray-500">{recIcon.text} • {group.buyer}</p>
                                             </div>
                                         </div>
                                         <div className={`text-xs px-2 py-1 rounded-full ${
@@ -419,6 +811,16 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, imp
                                             <span className="text-gray-500">Campanhas:</span>
                                             <span className="font-semibold text-gray-700">{rec.recentCampanhas}</span>
                                         </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">Volatilidade (ROI σ):</span>
+                                            <span className="font-semibold text-gray-700">{rec.recentStd.toFixed(1)}%</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">Uplift estimado (+20% gasto):</span>
+                                            <span className={`font-semibold ${rec.expectedUpliftLucro >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                R$ {Math.abs(rec.expectedUpliftLucro).toLocaleString('pt-BR', {maximumFractionDigits: 0})}
+                                            </span>
+                                        </div>
                                     </div>
                                     
                                     <div className="mt-3 pt-2 border-t border-gray-100">
@@ -428,17 +830,19 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, imp
                                                 style={{ width: `${Math.min(100, Math.max(10, rec.score + 50))}%` }}
                                             ></div>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-1 text-center">Score: {rec.score.toFixed(1)}</p>
+                                        <p className="text-[11px] text-gray-500 mt-1 text-center">Score: {rec.score.toFixed(1)} • Uplift: R$ {Math.abs(rec.expectedUpliftLucro).toLocaleString('pt-BR', {maximumFractionDigits: 0})}</p>
                                     </div>
                                 </div>
                             );
                         })}
-                    </div>
+                            </div>
+                        </div>
+                    ))}
                     
                     <div className="mt-4 p-3 bg-white/50 rounded-lg border border-purple-100">
                         <p className="text-xs text-gray-600 flex items-center">
                             <CheckCircle className="w-3 h-3 mr-1 text-purple-500" />
-                            <strong>Como funciona:</strong> O sistema analisa ROI recente, tendência de melhora, lucratividade e consistência de dados para sugerir as melhores séries para focar hoje.
+                            <strong>Como funciona:</strong> O sistema analisa, para cada Media Buyer, ROI recente, tendência, lucratividade e consistência para sugerir as melhores séries para focar hoje.
                         </p>
                     </div>
                 </div>
@@ -557,17 +961,62 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, imp
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 <div className="lg:col-span-3 bg-white p-4 rounded-lg shadow-sm">
-                    <h3 className="font-bold text-gray-700 mb-4">Tendência de Performance Diária</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={trendData}>
+                    <h3 className="font-bold text-gray-700 mb-3">Tendência de Performance Diária</h3>
+                    {/* Controles locais do gráfico */}
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-600">Série:</label>
+                            <select
+                                value={chartSerie}
+                                onChange={(e) => setChartSerie(e.target.value)}
+                                className="text-xs border rounded px-2 py-1"
+                            >
+                                <option value="all">Todas</option>
+                                {allSeries.map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-600 mr-1">Últimos dias:</span>
+                            {[2,3,4,5,6,7,15,30].map(n => (
+                                <button
+                                    key={n}
+                                    onClick={() => setChartDays(n)}
+                                    className={`text-[11px] px-2 py-0.5 rounded border ${chartDays===n ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                                >
+                                    {n}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setChartDays(undefined)}
+                                className={`text-[11px] px-2 py-0.5 rounded border ${!chartDays ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                            >
+                                Tudo
+                            </button>
+                        </div>
+                    </div>
+                    {/* Toggles para foco no Lucro */}
+                    <TrendToggles />
+                    <ResponsiveContainer width="100%" height={320}>
+                        <ComposedChart data={trendData}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="date" tick={{fontSize: 12}}/>
                             <YAxis tickFormatter={(val) => `R$${(val/1000).toFixed(0)}k`} tick={{fontSize: 12}}/>
-                            <Tooltip formatter={(value) => `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} />
+                            <Tooltip formatter={(value, name) => {
+                                if (typeof value === 'number') {
+                                    return [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, name];
+                                }
+                                return [value, name];
+                            }} />
+                            {/* Barras - opcionais, foco é Lucro */}
+                            {showReceita && <Bar dataKey="Receita" name="Receita" fill="#3B82F6" opacity={0.25} />}
+                            {showGasto && <Bar dataKey="Gasto" name="Gasto" fill="#8B5CF6" opacity={0.25} />}
+                            {/* Linhas principais */}
+                            {showLucro && <Line type="monotone" dataKey="Lucro" name="Lucro" stroke="#10B981" strokeWidth={3} dot={false} />}
+                            {showMA7 && <Line type="monotone" dataKey="LucroMA7" name="Lucro (MM7)" stroke="#059669" strokeWidth={2} strokeDasharray="5 5" dot={false} />}
                             <Legend />
-                            <Line type="monotone" dataKey="Receita" stroke="#3B82F6" strokeWidth={2} />
-                            <Line type="monotone" dataKey="Gasto" stroke="#8B5CF6" strokeWidth={2} />
-                        </LineChart>
+                        </ComposedChart>
                     </ResponsiveContainer>
                 </div>
                 <div className="lg:col-span-2 bg-white p-4 rounded-lg shadow-sm">
@@ -1550,72 +1999,142 @@ export default function App() {
         endDate: ''
     });
 
-    const handleDataImported = async (newData, referenceDate) => {
-        setAllData(newData);
-        let ref = null;
-        if (referenceDate instanceof Date && !isNaN(referenceDate)) {
-            ref = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
-            setImportReferenceDate(ref);
-        }
+    // Feature flag para habilitar o recurso de exclusão por dia
+    const enableDeleteDay = true;
 
-        // Persistir no Firestore agrupado por data de referência
+    // Deduplicação por (campanha id + dia local)
+    const makeDayKey = (dt) => {
+        if (!(dt instanceof Date) || isNaN(dt)) return 'invalid';
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+    const dedupeByCampaignDay = (arr) => {
+        const map = new Map();
+        for (const it of arr) {
+            const key = `${it.id}|${makeDayKey(it.data instanceof Date ? it.data : new Date(it.data))}`;
+            map.set(key, it); // último vence
+        }
+        return Array.from(map.values());
+    };
+
+    // Exclusão segura de um dia: apenas estado + localStorage
+    const handleDeleteDay = async (dayId) => {
+        if (!dayId) return;
+
+        // 1) Remover do estado e atualizar data de referência
+        setAllData(prev => {
+            const filtered = (prev || []).filter(it => makeDayKey(it.data instanceof Date ? it.data : new Date(it.data)) !== dayId);
+            const remainingDays = Array.from(new Set(filtered.map(it => makeDayKey(it.data instanceof Date ? it.data : new Date(it.data))).filter(d => d && d !== 'invalid'))).sort();
+            if (remainingDays.length) {
+                const [y,m,d] = remainingDays[remainingDays.length - 1].split('-').map(n=>parseInt(n,10));
+                setImportReferenceDate(new Date(y, m-1, d, 12, 0, 0, 0));
+            } else {
+                setImportReferenceDate(null);
+            }
+            return filtered;
+        });
+
+        // 2) Remover do localStorage (sem Firestore nesta etapa)
         try {
-            // Usa data LOCAL para evitar deslocamento por timezone (não usar toISOString)
-            const base = ref || new Date();
-            const y = base.getFullYear();
-            const m = String(base.getMonth() + 1).padStart(2, '0');
-            const d = String(base.getDate()).padStart(2, '0');
-            const dateId = `${y}-${m}-${d}`; // YYYY-MM-DD (local)
-            const importDocRef = doc(collection(db, 'imports'), dateId);
-            await setDoc(importDocRef, { id: dateId });
-            const batch = writeBatch(db);
-            const campaignsCol = collection(importDocRef, 'campaigns');
-            newData.forEach(item => {
-                const campaignRef = doc(campaignsCol, item.id);
-                // Serializar Date -> Timestamp ISO para armazenar
-                const payload = { ...item, data: item.data instanceof Date ? item.data.toISOString() : item.data };
-                batch.set(campaignRef, payload);
-            });
-            await batch.commit();
-            console.log(`Firestore: ${newData.length} campanhas salvas em imports/${dateId}/campaigns`);
+            localStorage.removeItem(`import_${dayId}`);
+            const keys = Object.keys(localStorage).filter(k => k.startsWith('import_'));
+            const remainingIds = keys.map(k => k.replace('import_', '')).sort();
+            if (remainingIds.length > 0) {
+                localStorage.setItem('latestImportId', remainingIds[remainingIds.length - 1]);
+            } else {
+                localStorage.removeItem('latestImportId');
+            }
+        } catch (e) {
+            console.warn('Falha ao atualizar localStorage ao excluir dia:', e);
+        }
+    };
+
+    // Recebe novos dados importados, mescla ao estado e persiste localmente
+    const handleDataImported = async (newData, referenceDate) => {
+        // Merge + dedupe por (id+dia)
+        setAllData(prev => dedupeByCampaignDay([...(prev || []), ...(newData || [])]));
+
+        // Persistência simples em localStorage por dia de referência (quando fornecido)
+        try {
+            if (referenceDate instanceof Date && !isNaN(referenceDate)) {
+                const dayId = makeDayKey(referenceDate);
+                const existingRaw = localStorage.getItem(`import_${dayId}`);
+                const existing = existingRaw ? JSON.parse(existingRaw) : [];
+                const merged = dedupeByCampaignDay([...(existing || []), ...(newData || [])]);
+                localStorage.setItem(`import_${dayId}`, JSON.stringify(merged));
+                localStorage.setItem('latestImportId', dayId);
+                setImportReferenceDate(new Date(referenceDate));
+            }
         } catch (err) {
-            console.error('Erro ao salvar no Firestore:', err);
+            console.error('Erro ao salvar dados locais após importação:', err);
         }
 
         setActiveTab('Visão Geral');
     };
 
-    // Carregar último import ao iniciar o app
-    useEffect(() => {
-        const loadLatestImport = async () => {
+    // Carrega dados de todas as importações (Firestore e/ou localStorage)
+    const loadLatestImport = async () => {
+        let loaded = [];
+        let latestId = null;
+        // 1) Tenta Firestore: carrega todas as datas e concatena
+        if (firebaseReady && db) {
             try {
                 const importsSnap = await getDocs(collection(db, 'imports'));
                 const importIds = [];
                 importsSnap.forEach(d => importIds.push(d.id));
-                if (importIds.length === 0) return;
-                // IDs no formato YYYY-MM-DD ordenam lexicograficamente
-                importIds.sort();
-                const latestId = importIds[importIds.length - 1];
-                const campaignsSnap = await getDocs(collection(doc(collection(db, 'imports'), latestId), 'campaigns'));
-                const loaded = [];
-                campaignsSnap.forEach(docu => {
-                    const it = docu.data();
-                    loaded.push({
-                        ...it,
-                        data: it.data ? new Date(it.data) : null
-                    });
-                });
-                setAllData(loaded);
-                const [y,m,d] = latestId.split('-').map(n => parseInt(n,10));
-                // Usar a mesma lógica de data local que handleDataImported
-                const ref = new Date(y, m-1, d, 12, 0, 0, 0); // meio-dia para evitar problemas de timezone
-                setImportReferenceDate(ref);
-                console.log(`Firestore: carregadas ${loaded.length} campanhas do import ${latestId}, referenceDate: ${ref.toLocaleDateString('pt-BR')}`);
-            console.log(`DEBUG: latestId = ${latestId}, parsed date parts: y=${y}, m=${m}, d=${d}`);
+                if (importIds.length > 0) {
+                    importIds.sort();
+                    latestId = importIds[importIds.length - 1];
+                    for (const id of importIds) {
+                        const campaignsSnap = await getDocs(collection(doc(collection(db, 'imports'), id), 'campaigns'));
+                        campaignsSnap.forEach(docu => {
+                            const it = docu.data();
+                            const dt = it.data ? new Date(it.data) : null;
+                            loaded.push({ ...it, data: dt });
+                        });
+                    }
+                }
             } catch (err) {
-                console.error('Erro ao carregar dados do Firestore:', err);
+                console.warn('Falha ao carregar do Firestore, tentando localStorage:', err);
             }
-        };
+        }
+
+        // 2) Fallback localStorage: agrega todos os import_YYYY-MM-DD
+        if (!loaded.length) {
+            try {
+                const keys = Object.keys(localStorage).filter(k => k.startsWith('import_'));
+                if (keys.length) {
+                    keys.sort();
+                    latestId = keys[keys.length - 1].replace('import_', '');
+                    for (const k of keys) {
+                        const raw = localStorage.getItem(k);
+                        if (!raw) continue;
+                        const arr = JSON.parse(raw);
+                        const mapped = arr.map(it => ({ ...it, data: it.data ? new Date(it.data) : null }));
+                        loaded.push(...mapped);
+                    }
+                    console.log(`LocalStorage: carregadas ${loaded.length} campanhas de ${keys.length} dias`);
+                }
+            } catch (e) {
+                console.warn('LocalStorage indisponível para carregar dados:', e);
+            }
+        }
+
+        if (loaded.length) {
+            setAllData(dedupeByCampaignDay(loaded));
+            if (latestId) {
+                const [y,m,d] = latestId.split('-').map(n => parseInt(n,10));
+                const ref = new Date(y, m-1, d, 12, 0, 0, 0);
+                setImportReferenceDate(ref);
+                console.log(`Carregadas ${loaded.length} campanhas (múltiplos dias). Último dia: ${latestId}`);
+            }
+        }
+    };
+
+    // Efeito para carregar dados na inicialização
+    useEffect(() => {
         loadLatestImport();
     }, []);
 
@@ -1710,42 +2229,43 @@ export default function App() {
     const allSeries = useMemo(() => [...new Set(allData.map(d => d.serie))].sort(), [allData]);
     const allBuyers = useMemo(() => [...new Set(allData.map(d => d.mediaBuyer))].sort(), [allData]);
 
-    const TABS = {
-        'Visão Geral': <VisaoGeral data={filteredData} kpis={kpis} filters={filters} setFilters={setFilters} allSeries={allSeries} allBuyers={allBuyers} importReferenceDate={importReferenceDate} />,
-        'Media Buyers': <MediaBuyers data={filteredData} />,
-        'Análise de Séries': <AnaliseSeries data={filteredData} />,
-        'Contas': <PerformancePorConta data={filteredData} />,
-        'Sites': <PerformancePorSite data={filteredData} />,
-        'Análises': <Analises data={filteredData} />,
-        'Importar Dados': <ImportarDados onDataImported={handleDataImported} currentDataCount={allData.length} />,
-    };
+        const TABS = {
+            'Visão Geral': <VisaoGeral data={filteredData} kpis={kpis} filters={filters} setFilters={setFilters} allSeries={allSeries} allBuyers={allBuyers} importReferenceDate={importReferenceDate} />,
+            'Media Buyers': <MediaBuyers data={filteredData} />,
+            'Análise de Séries': <AnaliseSeries data={filteredData} />,
+            'Contas': <PerformancePorConta data={filteredData} />,
+            'Sites': <PerformancePorSite data={filteredData} />, 
+            'Comparar Dias': <CompararDias data={allData} onDeleteDay={enableDeleteDay ? handleDeleteDay : undefined} />, 
+            'Análises': <Analises data={filteredData} />, 
+            'Importar Dados': <ImportarDados onDataImported={handleDataImported} currentDataCount={allData.length} />, 
+        };
 
-    return (
-        <div className="bg-slate-50 min-h-screen font-sans text-gray-800">
-            <div className="container mx-auto p-4 sm:p-6">
-                <header className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-800">Dashboard de Performance dos Media Buyers</h1>
-                    <p className="text-sm text-gray-500">Análise abrangente para arbitragem de tráfego pago</p>
-                </header>
-                <nav className="mb-6">
-                    <div className="border-b border-gray-200">
-                        <div className="-mb-px flex space-x-6 overflow-x-auto">
-                            {Object.keys(TABS).map(tabName => (
-                                <button
-                                    key={tabName}
-                                    onClick={() => setActiveTab(tabName)}
-                                    className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                                        activeTab === tabName
-                                            ? 'border-blue-500 text-blue-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                                >
-                                    {tabName}
-                                </button>
-                            ))}
+        return (
+            <div className="bg-slate-50 min-h-screen font-sans text-gray-800">
+                <div className="container mx-auto p-4 sm:p-6">
+                    <header className="mb-6">
+                        <h1 className="text-2xl font-bold text-gray-800">Dashboard de Performance dos Media Buyers</h1>
+                        <p className="text-sm text-gray-500">Análise abrangente para arbitragem de tráfego pago</p>
+                    </header>
+                    <nav className="mb-6">
+                        <div className="border-b border-gray-200">
+                            <div className="-mb-px flex space-x-6 overflow-x-auto">
+                                {Object.keys(TABS).map(tabName => (
+                                    <button
+                                        key={tabName}
+                                        onClick={() => setActiveTab(tabName)}
+                                        className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                                            activeTab === tabName
+                                                ? 'border-blue-500 text-blue-600'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        {tabName}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </nav>
+                    </nav>
                 <main>
                     {TABS[activeTab]}
                 </main>
