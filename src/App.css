@@ -1,8 +1,27 @@
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  /* Make the app fluid; spacing is handled per-section via Tailwind */
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: initial;
+}
+
+/* Brand Theme Variables (adjust to your palette) */
+:root {
+  /* Core brand (UP Midia: blue -> cyan) */
+  --brand-primary: #2563EB;          /* Blue */
+  --brand-secondary: #06B6D4;        /* Cyan */
+  --brand-primary-700: #1D4ED8;      /* Darker blue */
+  --brand-accent: #22C55E;           /* Optional accent */
+  --brand-surface: rgba(255,255,255,0.8);
+  --brand-border: #e5e7eb;           /* Gray-200 */
+  --brand-pill: #f1f5f9;             /* Slate-100 */
+  --brand-pill-hover: #e2e8f0;       /* Slate-200 */
+  --brand-text: #0f172a;             /* Slate-900 */
+
+  /* Gradients */
+  --brand-gradient: linear-gradient(90deg, var(--brand-primary), var(--brand-secondary));
+  --brand-gradient-strong: linear-gradient(90deg, var(--brand-primary-700), var(--brand-secondary));
 }
 
 .logo {

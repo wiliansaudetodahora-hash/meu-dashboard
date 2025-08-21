@@ -2049,6 +2049,32 @@ export default function App() {
         } catch (e) {
             console.warn('Falha ao atualizar localStorage ao excluir dia:', e);
         }
+
+        // 3) Remover do Firestore (subcoleção campaigns e depois o doc do dia)
+        if (firebaseReady && db) {
+            try {
+                console.log(`[Firestore] Excluindo dia ${dayId}`);
+                const dayRef = doc(collection(db, 'imports'), dayId);
+                // Apagar subcoleção campaigns em lotes
+                const campaignsSnap = await getDocs(collection(dayRef, 'campaigns'));
+                const docs = [];
+                campaignsSnap.forEach(d => docs.push(d.ref));
+                const chunkSize = 400;
+                for (let i = 0; i < docs.length; i += chunkSize) {
+                    const batch = writeBatch(db);
+                    const chunk = docs.slice(i, i + chunkSize);
+                    chunk.forEach(ref => batch.delete(ref));
+                    await batch.commit();
+                    console.log(`[Firestore] Campaigns deletadas (${Math.min(i + chunk.length, docs.length)}/${docs.length}) para ${dayId}`);
+                }
+                await deleteDoc(dayRef);
+                console.log(`[Firestore] Dia ${dayId} excluído`);
+            } catch (e) {
+                console.error(`[Firestore] Falha ao excluir dia ${dayId}:`, e);
+            }
+        } else {
+            console.warn('[Firestore] firebaseReady=false ou db nulo. Pulando exclusão remota.');
+        }
     };
 
     // Recebe novos dados importados, mescla ao estado e persiste localmente
@@ -2066,6 +2092,42 @@ export default function App() {
                 localStorage.setItem(`import_${dayId}`, JSON.stringify(merged));
                 localStorage.setItem('latestImportId', dayId);
                 setImportReferenceDate(new Date(referenceDate));
+
+                // Persistência em Firestore (se configurado)
+                if (firebaseReady && db) {
+                    try {
+                        console.log(`[Firestore] Gravando importação do dia ${dayId} (${merged.length} campanhas)`);
+                        const dayRef = doc(collection(db, 'imports'), dayId);
+                        // Cria/atualiza doc do dia com metadados simples
+                        await setDoc(dayRef, {
+                            dayId,
+                            count: merged.length,
+                            updatedAt: new Date().toISOString(),
+                        }, { merge: true });
+
+                        // Filtra somente campanhas desse dia (por segurança)
+                        const itemsOfDay = merged.filter(it => makeDayKey(it.data instanceof Date ? it.data : new Date(it.data)) === dayId);
+
+                        // Escreve em lotes (limite ~500 operações por batch)
+                        const chunkSize = 400;
+                        for (let i = 0; i < itemsOfDay.length; i += chunkSize) {
+                            const chunk = itemsOfDay.slice(i, i + chunkSize);
+                            const batch = writeBatch(db);
+                            chunk.forEach(it => {
+                                const dataIso = it.data instanceof Date ? it.data.toISOString() : new Date(it.data).toISOString();
+                                const campRef = doc(collection(dayRef, 'campaigns'), String(it.id));
+                                // Salva payload serializável
+                                batch.set(campRef, { ...it, data: dataIso });
+                            });
+                            await batch.commit();
+                            console.log(`[Firestore] Batch gravado (${i + chunk.length}/${itemsOfDay.length}) para ${dayId}`);
+                        }
+                    } catch (e) {
+                        console.error(`[Firestore] Falha ao gravar importação do dia ${dayId}:`, e);
+                    }
+                } else {
+                    console.warn('[Firestore] firebaseReady=false ou db nulo. Pulando gravação remota.');
+                }
             }
         } catch (err) {
             console.error('Erro ao salvar dados locais após importação:', err);
@@ -2229,6 +2291,19 @@ export default function App() {
     const allSeries = useMemo(() => [...new Set(allData.map(d => d.serie))].sort(), [allData]);
     const allBuyers = useMemo(() => [...new Set(allData.map(d => d.mediaBuyer))].sort(), [allData]);
 
+        // Ícones por aba para um visual mais moderno
+        const tabIcons = {
+            'Visão Geral': BarChart2,
+            'Media Buyers': Users,
+            'Análise de Séries': TrendingUp,
+            'Contas': DollarSign,
+            'Sites': Tv,
+            'Comparar Dias': CalendarIcon,
+            'Análises': Filter,
+            'Importar Dados': Upload,
+            'Editor de Imagens': Download,
+        };
+
         const TABS = {
             'Visão Geral': <VisaoGeral data={filteredData} kpis={kpis} filters={filters} setFilters={setFilters} allSeries={allSeries} allBuyers={allBuyers} importReferenceDate={importReferenceDate} />,
             'Media Buyers': <MediaBuyers data={filteredData} />,
@@ -2238,31 +2313,48 @@ export default function App() {
             'Comparar Dias': <CompararDias data={allData} onDeleteDay={enableDeleteDay ? handleDeleteDay : undefined} />, 
             'Análises': <Analises data={filteredData} />, 
             'Importar Dados': <ImportarDados onDataImported={handleDataImported} currentDataCount={allData.length} />, 
+            'Editor de Imagens': (
+                <div className="w-full -mx-4 sm:-mx-6 lg:-mx-10" style={{ height: 'calc(100vh - 180px)' }}>
+                    <iframe
+                        title="Editor de Imagens"
+                        src="/editor/index.html"
+                        className="w-full h-full border-0 rounded-none bg-white"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                    />
+                </div>
+            ),
         };
 
         return (
             <div className="bg-slate-50 min-h-screen font-sans text-gray-800">
-                <div className="container mx-auto p-4 sm:p-6">
+                <div className="w-full px-4 sm:px-6 lg:px-10 py-4">
                     <header className="mb-6">
                         <h1 className="text-2xl font-bold text-gray-800">Dashboard de Performance dos Media Buyers</h1>
                         <p className="text-sm text-gray-500">Análise abrangente para arbitragem de tráfego pago</p>
                     </header>
-                    <nav className="mb-6">
-                        <div className="border-b border-gray-200">
-                            <div className="-mb-px flex space-x-6 overflow-x-auto">
-                                {Object.keys(TABS).map(tabName => (
-                                    <button
-                                        key={tabName}
-                                        onClick={() => setActiveTab(tabName)}
-                                        className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                                            activeTab === tabName
-                                                ? 'border-blue-500 text-blue-600'
-                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                        }`}
-                                    >
-                                        {tabName}
-                                    </button>
-                                ))}
+                    <nav className="mb-6 sticky top-0 z-20">
+                        <div className="overflow-x-auto">
+                            <div className="flex gap-2 p-1 bg-[var(--brand-surface)] backdrop-blur border border-[var(--brand-border)] rounded-xl shadow-sm">
+                                {Object.keys(TABS).map(tabName => {
+                                    const Icon = tabIcons[tabName];
+                                    const isActive = activeTab === tabName;
+                                    return (
+                                        <button
+                                            key={tabName}
+                                            onClick={() => setActiveTab(tabName)}
+                                            className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm transition-colors duration-150 ${
+                                                isActive
+                                                    ? '[background:var(--brand-gradient)] text-white shadow hover:[background:var(--brand-gradient-strong)]'
+                                                    : 'bg-[var(--brand-pill)] text-[color:var(--brand-text)]/80 hover:bg-[var(--brand-pill-hover)]'
+                                            }`}
+                                            title={tabName}
+                                        >
+                                            {Icon ? <Icon size={16} className={isActive ? 'opacity-100' : 'opacity-80'} /> : null}
+                                            <span className="font-medium">{tabName}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
                     </nav>
