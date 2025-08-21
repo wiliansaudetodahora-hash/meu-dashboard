@@ -169,7 +169,7 @@ const KpiCard = ({ icon: Icon, title, value, color, isCurrency = true }) => (
         <div className="ml-4">
             <p className="text-sm text-gray-500">{title}</p>
             <p className="text-xl font-bold text-gray-800">
-                {isCurrency ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : value}
+                {isCurrency ? `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}` : value}
             </p>
         </div>
     </div>
@@ -776,7 +776,7 @@ const VisaoGeral = ({ data, kpis, filters, setFilters, allSeries, allBuyers, imp
                                             </div>
                                             <div>
                                                 <h4 className="font-semibold text-gray-800 text-sm">{rec.serie}</h4>
-                                                <p className="text-[11px] text-gray-500">{recIcon.text} • {group.buyer}</p>
+                                                <p className="text-xs text-gray-500">{recIcon.text} • {group.buyer}</p>
                                             </div>
                                         </div>
                                         <div className={`text-xs px-2 py-1 rounded-full ${
@@ -1293,8 +1293,8 @@ const MediaBuyers = ({ data }) => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
+                        </div> {/* Added closing div here */}
+                        
                         {/* Métricas principais */}
                         <div className="p-6">
                             <div className="grid grid-cols-2 gap-4 mb-4">
@@ -1366,7 +1366,7 @@ const MediaBuyers = ({ data }) => {
                                                     <div className="text-gray-500">Lucro</div>
                                                 </div>
                                                 <div className="text-center">
-                                                    <div className="font-semibold text-gray-700">R$ {c.receita.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
+                                                    <div className="font-bold text-gray-700">R$ {c.receita.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
                                                     <div className="text-gray-500">Receita</div>
                                                 </div>
                                             </div>
@@ -1554,7 +1554,7 @@ const Analises = ({ data }) => {
                             <XAxis dataKey="name" tick={{fontSize: isMobile ? 10 : 12}}/>
                             <YAxis tickFormatter={(val) => `R$${(val/1000).toFixed(0)}k`} tick={{fontSize: isMobile ? 10 : 12}}/>
                             <Tooltip formatter={(value) => `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} />
-                            {isMobile ? null : <Legend />}
+                            {/* <Legend /> */}
                             <Bar dataKey="receita" fill="#10B981" name="Receita" />
                             <Bar dataKey="gasto" fill="#EF4444" name="Gasto" />
                         </BarChart>
@@ -1568,7 +1568,7 @@ const Analises = ({ data }) => {
                             <XAxis dataKey="date" tick={{fontSize: isMobile ? 10 : 12}}/>
                             <YAxis tickFormatter={(val) => `R$${(val/1000).toFixed(0)}k`} tick={{fontSize: isMobile ? 10 : 12}}/>
                             <Tooltip formatter={(value) => `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`} />
-                            {isMobile ? null : <Legend />}
+                            {/* <Legend /> */}
                             <Line type="monotone" dataKey="Receita" stroke="#3B82F6" strokeWidth={2} />
                             <Line type="monotone" dataKey="Gasto" stroke="#8B5CF6" strokeWidth={2} />
                         </LineChart>
@@ -1838,7 +1838,7 @@ const ImportarDados = ({ onDataImported, currentDataCount }) => {
                 let dateFromCampaign;
                 if (useSelectedDateForAll && importDate) {
                     // Usar a data selecionada (AAAA-MM-DD)
-                    const [y, m, d] = importDate.split('-').map(n => parseInt(n, 10));
+                    const [y,m,d] = importDate.split('-').map(n => parseInt(n, 10));
                     dateFromCampaign = new Date(y, (m - 1), d);
                 } else {
                     // Processar data a partir do código da campanha (DDMMYYYY)
@@ -2326,7 +2326,67 @@ export default function App() {
             ),
         };
 
-        const isImmersive = false;
+        const firestoreOnline = firebaseReady && !!db;
+        const [isSyncing, setIsSyncing] = useState(false);
+
+        // Sincroniza todos os dias do localStorage para o Firestore
+        const syncLocalToFirestore = async () => {
+            if (!firestoreOnline || isSyncing) return;
+            setIsSyncing(true);
+            try {
+                const keys = Object.keys(localStorage).filter(k => k.startsWith('import_'));
+                if (!keys.length) {
+                    console.warn('[Sync] Nenhum dado local para sincronizar.');
+                    setIsSyncing(false);
+                    return;
+                }
+                keys.sort();
+                for (const k of keys) {
+                    const dayId = k.replace('import_', '');
+                    const raw = localStorage.getItem(k);
+                    if (!raw) continue;
+                    let items = [];
+                    try { items = JSON.parse(raw) || []; } catch { items = []; }
+                    if (!items.length) continue;
+
+                    console.log(`[Sync] Enviando ${items.length} campanhas do dia ${dayId} para Firestore…`);
+                    const dayRef = doc(collection(db, 'imports'), dayId);
+                    await setDoc(dayRef, {
+                        dayId,
+                        count: items.length,
+                        updatedAt: new Date().toISOString(),
+                    }, { merge: true });
+
+                    // Apenas itens do próprio dia (segurança)
+                    const itemsOfDay = items.filter(it => {
+                        const d = it.data ? new Date(it.data) : null;
+                        if (!d) return false;
+                        const y = d.getFullYear();
+                        const m = String(d.getMonth() + 1).padStart(2, '0');
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        return `${y}-${m}-${dd}` === dayId;
+                    });
+
+                    const chunkSize = 400;
+                    for (let i = 0; i < itemsOfDay.length; i += chunkSize) {
+                        const chunk = itemsOfDay.slice(i, i + chunkSize);
+                        const batch = writeBatch(db);
+                        chunk.forEach(it => {
+                            const dataIso = it.data instanceof Date ? it.data.toISOString() : new Date(it.data).toISOString();
+                            const campRef = doc(collection(dayRef, 'campaigns'), String(it.id));
+                            batch.set(campRef, { ...it, data: dataIso });
+                        });
+                        await batch.commit();
+                        console.log(`[Sync] Batch ${Math.min(i + chunk.length, itemsOfDay.length)}/${itemsOfDay.length} do dia ${dayId}`);
+                    }
+                }
+                console.log('[Sync] Concluído.');
+            } catch (e) {
+                console.error('[Sync] Falha durante sincronização:', e);
+            } finally {
+                setIsSyncing(false);
+            }
+        };
 
         return (
             <div className="bg-slate-50 min-h-screen font-sans text-gray-800">
@@ -2360,6 +2420,29 @@ export default function App() {
                                     );
                                 })}
                             </div>
+                        </div>
+                        <div className="mt-2 flex items-center justify-end gap-2">
+                            <span
+                                title={firestoreOnline ? 'Lendo e escrevendo no Firestore' : 'Sem Firestore: usando LocalStorage'}
+                                className={`inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full border ${
+                                    firestoreOnline
+                                        ? 'bg-green-50 text-green-700 border-green-200'
+                                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}
+                            >
+                                <span className={`w-2 h-2 rounded-full ${firestoreOnline ? 'bg-green-500' : 'bg-amber-500'}`}></span>
+                                {firestoreOnline ? 'Firestore conectado' : 'Offline (LocalStorage)'}
+                            </span>
+                            <button
+                                onClick={syncLocalToFirestore}
+                                disabled={!firestoreOnline || isSyncing}
+                                className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+                                    firestoreOnline ? 'bg-white hover:bg-gray-50 text-gray-700 border-gray-300' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                }`}
+                                title={firestoreOnline ? 'Enviar dados do navegador para o Firestore' : 'Ative o Firestore para sincronizar'}
+                            >
+                                {isSyncing ? 'Sincronizando…' : 'Sincronizar local → Firestore'}
+                            </button>
                         </div>
                     </nav>
                     <main className="flex-1 min-h-0 overflow-auto">
