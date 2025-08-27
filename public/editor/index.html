@@ -718,6 +718,37 @@
                 </div>
                 <div class="card">
                     <h2 class="card-title">
+                        Redimensionamento Manual
+                        <button class="reset-btn" id="reset-transform-btn">Resetar</button>
+                    </h2>
+                    <div class="slider-container" style="margin-top: 0;">
+                        <div class="slider-label">
+                            <label for="image-scale-slider">Escala</label>
+                            <span id="image-scale-value">100%</span>
+                        </div>
+                        <input type="range" id="image-scale-slider" min="10" max="200" value="100">
+                    </div>
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <label for="image-x-slider">Posição X</label>
+                            <span id="image-x-value">0px</span>
+                        </div>
+                        <input type="range" id="image-x-slider" min="-500" max="500" value="0">
+                    </div>
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <label for="image-y-slider">Posição Y</label>
+                            <span id="image-y-value">0px</span>
+                        </div>
+                        <input type="range" id="image-y-slider" min="-500" max="500" value="0">
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                        <button class="btn btn-secondary" id="center-image-btn" style="flex: 1;">Centralizar</button>
+                        <button class="btn btn-secondary" id="fit-image-btn" style="flex: 1;">Ajustar</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2 class="card-title">
                         Botão de Play
                         <button class="reset-btn" id="reset-play-button-btn">Resetar</button>
                     </h2>
@@ -1194,6 +1225,86 @@
             updateUI();
         });
 
+        const imageScaleSlider = document.getElementById('image-scale-slider');
+        const imageXSlider = document.getElementById('image-x-slider');
+        const imageYSlider = document.getElementById('image-y-slider');
+        const resetTransformBtn = document.getElementById('reset-transform-btn');
+        const centerImageBtn = document.getElementById('center-image-btn');
+        const fitImageBtn = document.getElementById('fit-image-btn');
+
+        if (imageScaleSlider) {
+            imageScaleSlider.addEventListener('input', (e) => {
+                updateActiveImageProp('imageScale', parseInt(e.target.value));
+                redrawCanvas();
+                updateUI();
+            });
+        }
+
+        if (imageXSlider) {
+            imageXSlider.addEventListener('input', (e) => {
+                updateActiveImageProp('imageX', parseInt(e.target.value));
+                redrawCanvas();
+                updateUI();
+            });
+        }
+
+        if (imageYSlider) {
+            imageYSlider.addEventListener('input', (e) => {
+                updateActiveImageProp('imageY', parseInt(e.target.value));
+                redrawCanvas();
+                updateUI();
+            });
+        }
+
+        if (resetTransformBtn) {
+            resetTransformBtn.addEventListener('click', () => {
+                updateActiveImageProp('imageScale', 100);
+                updateActiveImageProp('imageX', 0);
+                updateActiveImageProp('imageY', 0);
+                redrawCanvas();
+                updateUI();
+            });
+        }
+
+        if (centerImageBtn) {
+            centerImageBtn.addEventListener('click', () => {
+                updateActiveImageProp('imageX', 0);
+                updateActiveImageProp('imageY', 0);
+                redrawCanvas();
+                updateUI();
+            });
+        }
+
+        if (fitImageBtn) {
+            fitImageBtn.addEventListener('click', () => {
+                fitImageToCanvas();
+            });
+        }
+        
+        // Função para ajustar imagem ao canvas
+        function fitImageToCanvas() {
+            const activeImage = uploadedImages.find(img => img.id === activeImageId);
+            if (!activeImage || !activeImage.imageObj) return;
+            
+            const canvasAspectRatio = TARGET_WIDTH / TARGET_HEIGHT;
+            const imgAspectRatio = activeImage.imageObj.width / activeImage.imageObj.height;
+            
+            let scale;
+            if (canvasAspectRatio > imgAspectRatio) {
+                // Imagem é mais alta proporcionalmente
+                scale = (TARGET_HEIGHT / activeImage.imageObj.height) * 100;
+            } else {
+                // Imagem é mais larga proporcionalmente
+                scale = (TARGET_WIDTH / activeImage.imageObj.width) * 100;
+            }
+            
+            updateActiveImageProp('imageScale', Math.min(scale, 200));
+            updateActiveImageProp('imageX', 0);
+            updateActiveImageProp('imageY', 0);
+            redrawCanvas();
+            updateUI();
+        }
+
         clearGalleryBtn.addEventListener('click', clearGallery);
         saveTemplateBtn.addEventListener('click', saveNewTemplate);
         resetTemplatesBtn.addEventListener('click', resetDefaultTemplates);
@@ -1410,17 +1521,16 @@
                         playButtonSize: 120,
                         playButtonX: 50,
                         playButtonY: 50,
-                        selectedFormat: 'jpeg',
-                        quality: 75,
-                        activeLogoId: null,
-                        logoScale: 50,
-                        logoX: 50,
-                        logoY: 15,
+                        imageScale: 100,
+                        imageX: 0,
+                        imageY: 0
                     };
+                    
                     uploadedImages.push(newImage);
+                    
                     filesToLoad--;
                     if (filesToLoad === 0) {
-                        if (activeImageId === null && uploadedImages.length > 0) {
+                        if (uploadedImages.length > 0) {
                             selectImage(uploadedImages[0].id);
                         } else {
                             renderGallery();
@@ -1565,6 +1675,29 @@
             contrastValue.textContent = `${activeImage.contrast}%`;
             saturateSlider.value = activeImage.saturate;
             saturateValue.textContent = `${activeImage.saturate}%`;
+            
+            // Atualizar controles de redimensionamento manual
+            const imageScaleSlider = document.getElementById('image-scale-slider');
+            const imageScaleValue = document.getElementById('image-scale-value');
+            const imageXSlider = document.getElementById('image-x-slider');
+            const imageXValue = document.getElementById('image-x-value');
+            const imageYSlider = document.getElementById('image-y-slider');
+            const imageYValue = document.getElementById('image-y-value');
+            
+            if (imageScaleSlider && imageScaleValue) {
+                imageScaleSlider.value = activeImage.imageScale || 100;
+                imageScaleValue.textContent = `${activeImage.imageScale || 100}%`;
+            }
+            
+            if (imageXSlider && imageXValue) {
+                imageXSlider.value = activeImage.imageX || 0;
+                imageXValue.textContent = `${activeImage.imageX || 0}px`;
+            }
+            
+            if (imageYSlider && imageYValue) {
+                imageYSlider.value = activeImage.imageY || 0;
+                imageYValue.textContent = `${activeImage.imageY || 0}px`;
+            }
 
             textColorPicker.value = activeImage.headlineColor;
             textBgColorPicker.value = activeImage.headlineBackgroundColor;
@@ -1724,7 +1857,15 @@
                 x = 0;
                 y = (TARGET_HEIGHT - drawHeight) / 2;
             }
-            ctx.drawImage(activeImage.imageObj, x, y, drawWidth, drawHeight);
+            
+            // Aplicar transformações manuais
+            const scale = (activeImage.imageScale || 100) / 100;
+            const scaledWidth = drawWidth * scale;
+            const scaledHeight = drawHeight * scale;
+            const finalX = x + (drawWidth - scaledWidth) / 2 + (activeImage.imageX || 0);
+            const finalY = y + (drawHeight - scaledHeight) / 2 + (activeImage.imageY || 0);
+            
+            ctx.drawImage(activeImage.imageObj, finalX, finalY, scaledWidth, scaledHeight);
             
             ctx.restore();
 
