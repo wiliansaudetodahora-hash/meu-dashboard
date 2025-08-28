@@ -1004,6 +1004,7 @@
                         <button class="btn btn-secondary" data-size="story" style="padding: 0.6rem 1rem; width: auto;">Story (9:16)</button>
                         <button class="btn btn-secondary" data-size="square" style="padding: 0.6rem 1rem; width: auto;">Quadrado (1:1)</button>
                         <button class="btn btn-secondary" data-size="feed" style="padding: 0.6rem 1rem; width: auto;">Feed (4:5)</button>
+                        <button class="btn btn-secondary" data-size="vertical" style="padding: 0.6rem 1rem; width: auto;">Vertical (2:3)</button>
                     </div>
                 </div>
                 <button id="batch-process-btn" class="btn btn-secondary" style="margin-right: 0.5rem;">Processar Lote</button>
@@ -1633,6 +1634,11 @@
                 TARGET_HEIGHT = 1350;
                 canvasWrapper.style.aspectRatio = '4 / 5';
                 canvasWrapper.style.maxWidth = '480px';
+            } else if (size === 'vertical') {
+                TARGET_WIDTH = 1024;
+                TARGET_HEIGHT = 1536;
+                canvasWrapper.style.aspectRatio = '2 / 3';
+                canvasWrapper.style.maxWidth = '400px';
             } else { // Default to 'story'
                 TARGET_WIDTH = 1080;
                 TARGET_HEIGHT = 1920;
