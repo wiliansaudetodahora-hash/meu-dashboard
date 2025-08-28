@@ -1159,6 +1159,7 @@
             "WATCH BEFORE DELETED", "EXCLUSIVE DRAMA", "TRENDING NOW", "MOST WATCHED DRAMA",
             "SHOCKING ENDING", "ROMANTIC DRAMA", "MUST WATCH TODAY", "VIRAL KOREAN SERIES",
             "ENGLISH SUBTITLES", "WATCH WITH SUBS", "HD QUALITY FREE", "BINGE WATCH NOW",
+            "WATCH NOW", "ALL EPISODES", "FOR FREE", "DIVORCED AT THE WEDDING DAY",
             "VER GRATIS AHORA", "EPISODIOS GRATIS", "DORAMA COMPLETO", "ÚLTIMO CAPÍTULO",
             "VER AHORA GRATIS", "TODOS LOS EPISODIOS", "TOCA PARA VER", "NUEVO DORAMA",
             "VER ANTES QUE BORREN", "DORAMA EXCLUSIVO", "LO MÁS VISTO", "DRAMA COREANO",
@@ -1218,9 +1219,19 @@
                 name: 'Estilo Viki', 
                 settings: { 
                     brightness: 100, contrast: 105, saturate: 110, 
-                    headlineFont: 'Default', headlineBackgroundStyle: 'capsule', 
-                    headlineBackgroundColor: '#0099CC', headlineBackgroundOpacity: 0.9, 
+                    headlineFont: 'Default', headlineBackgroundStyle: 'vazado', 
+                    headlineBackgroundColor: '#00D4FF', headlineBackgroundOpacity: 0.8, 
                     headlineColor: '#FFFFFF' 
+                }
+            },
+            watch_now_style: {
+                name: 'Watch Now Premium',
+                settings: {
+                    brightness: 105, contrast: 115, saturate: 110,
+                    headlineFont: 'Anton', headlineBackgroundStyle: 'faixa',
+                    headlineBackgroundColor: '#FFD700', headlineBackgroundOpacity: 0.9,
+                    headlineColor: '#000000',
+                    filter: 'dramatic'
                 }
             }
         };
@@ -1284,24 +1295,24 @@
             updateUI();
         }));
 
-        document.getElementById('play-button-controls').addEventListener('click', (e) => handleControlClick(e, 'type', (newType) => {
+        document.getElementById('play-button-controls').addEventListener('click', (e) => handleControlClick(e, 'data-type', (newType) => {
             updateActiveImageProp('selectedPlayButton', newType);
             redrawCanvas();
             updateUI();
         }, 'visual-btn'));
 
-        document.getElementById('text-background-controls').addEventListener('click', (e) => handleControlClick(e, 'style', (newStyle) => {
+        document.getElementById('text-background-controls').addEventListener('click', (e) => handleControlClick(e, 'data-style', (newStyle) => {
             updateActiveImageProp('headlineBackgroundStyle', newStyle);
             redrawCanvas();
             updateUI();
         }));
 
-        document.getElementById('format-controls').addEventListener('click', (e) => handleControlClick(e, 'format', (newFormat) => {
+        document.getElementById('format-controls').addEventListener('click', (e) => handleControlClick(e, 'data-format', (newFormat) => {
             updateActiveImageProp('selectedFormat', newFormat);
             updateUI();
         }));
 
-        document.getElementById('font-family-controls').addEventListener('click', (e) => handleControlClick(e, 'font', (newFont) => {
+        document.getElementById('font-family-controls').addEventListener('click', (e) => handleControlClick(e, 'data-font', (newFont) => {
             updateActiveImageProp('headlineFont', newFont);
             redrawCanvas();
             updateUI();
@@ -1310,7 +1321,7 @@
         templateControls.addEventListener('click', (e) => handleTemplateClick(e));
         customTemplatesContainer.addEventListener('click', (e) => handleTemplateClick(e));
 
-        headlineButtonsContainer.addEventListener('click', (e) => handleControlClick(e, 'text', (newText) => {
+        headlineButtonsContainer.addEventListener('click', (e) => handleControlClick(e, 'data-text', (newText) => {
             updateActiveImageProp('headlineText', newText);
             customHeadlineInput.value = '';
             redrawCanvas();
