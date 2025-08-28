@@ -496,6 +496,82 @@
             margin-top: 1.5rem;
             padding-top: 1.5rem;
         }
+
+        .export-settings {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+        }
+
+        /* Estilos adicionais para o painel de IA */
+        .ai-section {
+            margin-bottom: 1.5rem;
+        }
+        .ai-section h3 {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+        }
+        .ai-status {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+        .ai-results {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .ai-suggestions {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .ai-options {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .api-config {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .api-hint {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+        .api-hint a {
+            color: var(--accent);
+        }
+        .btn-ai {
+            background-color: var(--accent);
+            color: white;
+            padding: 0.6rem 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+        }
+        .btn-ai:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(138, 99, 210, 0.3);
+        }
+        .btn-ai:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -537,6 +613,10 @@
             <button class="nav-btn" data-panel="elements-panel">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69z"></path></svg>
                 <span>Elementos</span>
+            </button>
+            <button class="nav-btn" data-panel="ai-panel">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m11-11h-6m-6 0H1"></path><circle cx="12" cy="12" r="10"></circle></svg>
+                <span>IA</span>
             </button>
         </nav>
 
@@ -638,11 +718,13 @@
                     <h2 class="card-title">Preenchimento de Bordas</h2>
                     <div class="controls-grid" id="fill-mode-controls">
                         <button class="control-btn" data-mode="blur-pro">Desfoque Pro</button>
+                        <button class="control-btn" data-mode="edge-extend" title="Estende as bordas da imagem de forma imperceptível">Edge Extend</button>
                         <button class="control-btn" data-mode="stretch">Esticado</button>
                         <button class="control-btn" data-mode="duotone">Duotone</button>
                         <button class="control-btn" data-mode="mosaic">Mosaico</button>
                         <button class="control-btn" data-mode="gradient">Gradiente</button>
                         <button class="control-btn" data-mode="solid">Cor Sólida</button>
+                        <button class="control-btn" data-mode="smart" title="Escolhe automaticamente o melhor preenchimento">Inteligente</button>
                     </div>
                     <div id="fill-mode-options" style="margin-top: 1rem;"></div>
                 </div>
@@ -666,11 +748,11 @@
                     <div style="margin-top: 1rem;">
                         <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem;">Elementos Rápidos</h4>
                         <div class="controls-grid">
-                            <button class="control-btn" onclick="addDoramaElement('episode')">EP Badge</button>
-                            <button class="control-btn" onclick="addDoramaElement('subtitle')">SUB Badge</button>
-                            <button class="control-btn" onclick="addDoramaElement('hd')">HD Badge</button>
-                            <button class="control-btn" onclick="addDoramaElement('fullhd')">FULL HD</button>
-                            <button class="control-btn" onclick="addDoramaElement('new')">NEW Badge</button>
+                            <button class="control-btn" data-dorama="episode">EP Badge</button>
+                            <button class="control-btn" data-dorama="subtitle">SUB Badge</button>
+                            <button class="control-btn" data-dorama="hd">HD Badge</button>
+                            <button class="control-btn" data-dorama="fullhd">FULL HD</button>
+                            <button class="control-btn" data-dorama="new">NEW Badge</button>
                         </div>
                         <div id="dorama-elements-controls" style="display: none;">
                             <div class="slider-container" style="margin-top: 1rem;">
@@ -683,7 +765,7 @@
                             <div style="display: flex; align-items: center; gap: 1rem; margin-top: 1rem;">
                                 <label style="font-size: 0.9rem;">Cor do Badge:</label>
                                 <input type="color" id="dorama-badge-color" value="#FF0000" title="Cor do Badge">
-                                <button class="reset-btn" onclick="resetBadgeColors()">Cores Padrão</button>
+                                <button class="reset-btn" id="reset-badge-colors-btn">Cores Padrão</button>
                             </div>
                             <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">Arraste os badges na imagem para posicionar.</p>
                         </div>
@@ -764,7 +846,7 @@
                             <svg viewBox="0 0 48 48"><g><circle cx="27" cy="27" r="16" fill="#FF0050"></circle><circle cx="21" cy="21" r="16" fill="#00F2EA"></circle><circle cx="24" cy="24" r="14" fill="black"></circle><path fill="white" d="M21,18 l10,6 l-10,6 z"></path></g></svg>
                         </button>
                         <button class="visual-btn" data-type="gradient-circle">
-                            <svg viewBox="0 0 48 48"><defs><linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#8A2BE2"></stop><stop offset="100%" stop-color="#00BFFF"></stop></linearGradient></defs><circle cx="24" cy="24" r="18" stroke="url(#grad1)" stroke-width="4" fill="none"></circle><path d="M21 18 L31 24 L21 30 Z" fill="url(#grad1)"></path></svg>
+                            <svg viewBox="0 0 48 48"><defs><linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#8A2BE2" /><stop offset="100%" stop-color="#00BFFF" /></linearGradient></defs><circle cx="24" cy="24" r="18" stroke="url(#grad1)" stroke-width="4" fill="none"></circle><path d="M21 18 L31 24 L21 30 Z" fill="url(#grad1)"></path></svg>
                         </button>
                         <button class="visual-btn" data-type="red-circle">
                             <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#FF0000"></circle><path d="M21 18 L31 24 L21 30 Z" fill="white"></path></svg>
@@ -818,19 +900,100 @@
                 <div class="card">
                     <h2 class="card-title">Exportar</h2>
                     <div class="controls-grid" id="format-controls">
-                        <button class="control-btn" data-format="jpeg">JPEG</button>
+                        <button class="control-btn active" data-format="jpeg">JPEG</button>
                         <button class="control-btn" data-format="png">PNG</button>
                         <button class="control-btn" data-format="webp">WebP</button>
                     </div>
                     <div class="slider-container">
                         <div class="slider-label">
                             <label for="quality-slider">Qualidade</label>
-                            <span id="quality-value">75%</span>
+                            <span id="quality-value">85%</span>
                         </div>
-                        <input type="range" id="quality-slider" min="60" max="90">
+                        <input type="range" id="quality-slider" min="60" max="90" value="85">
                     </div>
                 </div>
             </div>
+
+            <!-- Seção IA -->
+            <div id="ai-panel" class="control-section">
+                <div class="card">
+                    <h2 class="card-title">🤖 Ferramentas de IA</h2>
+                    
+                    <!-- Remover Fundo -->
+                    <div class="ai-section">
+                        <h3 class="section-subtitle">Remover Fundo</h3>
+                        <button id="remove-bg-btn" class="btn btn-ai">
+                            <span>🎯</span> Remover Fundo Automaticamente
+                        </button>
+                        <div id="remove-bg-status" class="ai-status"></div>
+                    </div>
+
+                    <!-- Upscale de Imagem -->
+                    <div class="ai-section">
+                        <h3 class="section-subtitle">Melhorar Qualidade</h3>
+                        <div class="ai-options">
+                            <select id="upscale-factor" class="form-select">
+                                <option value="2">2x (Dobrar resolução)</option>
+                                <option value="4">4x (Quadruplicar)</option>
+                            </select>
+                            <button id="upscale-btn" class="btn btn-ai">
+                                <span>✨</span> Aumentar Resolução
+                            </button>
+                        </div>
+                        <div id="upscale-status" class="ai-status"></div>
+                    </div>
+
+                    <!-- Geração de Texto -->
+                    <div class="ai-section">
+                        <h3 class="section-subtitle">Gerar Texto Criativo</h3>
+                        <input type="text" id="ai-text-prompt" class="form-input" 
+                               placeholder="Ex: título romântico para dorama coreano">
+                        <div class="ai-options" style="display:flex; gap:0.5rem; align-items:center;">
+                            <select id="text-style" class="form-select">
+                                <option value="romantic">Romântico</option>
+                                <option value="dramatic">Dramático</option>
+                                <option value="comedy">Comédia</option>
+                                <option value="thriller">Suspense</option>
+                                <option value="viral">Viral/Clickbait</option>
+                            </select>
+                            <select id="text-language" class="form-select" title="Idioma do texto">
+                                <option value="en">Inglês</option>
+                                <option value="es">Espanhol</option>
+                            </select>
+                            <button id="generate-text-btn" class="btn btn-ai">
+                                <span>💬</span> Gerar Texto
+                            </button>
+                        </div>
+                        <div id="ai-text-results" class="ai-results"></div>
+                    </div>
+
+                    <!-- Sugestões de Composição -->
+                    <div class="ai-section">
+                        <h3 class="section-subtitle">Análise Inteligente</h3>
+                        <button id="analyze-composition-btn" class="btn btn-ai">
+                            <span>🎨</span> Analisar Composição
+                        </button>
+                        <div id="composition-suggestions" class="ai-suggestions"></div>
+                    </div>
+
+                    <!-- Configurações de API -->
+                    <div class="ai-section" style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                        <h3 class="section-subtitle">⚙️ Configuração de APIs</h3>
+                        <div class="api-config">
+                            <input type="password" id="removebg-api-key" class="form-input" 
+                                   placeholder="Remove.bg API Key">
+                            <input type="password" id="openai-api-key" class="form-input" 
+                                   placeholder="OpenAI API Key">
+                            <button id="save-api-keys" class="btn btn-secondary">Salvar Chaves</button>
+                        </div>
+                        <p class="api-hint">
+                            🔗 <a href="https://remove.bg/users/sign_up" target="_blank">Obter Remove.bg Key</a> | 
+                            <a href="https://platform.openai.com/api-keys" target="_blank">Obter OpenAI Key</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
         </aside>
 
         <!-- ÁREA DE PRÉ-VISUALIZAÇÃO -->
@@ -923,6 +1086,14 @@
         let snapStatus = { horizontal: false, vertical: false };
 
         let TARGET_WIDTH = 1080, TARGET_HEIGHT = 1920;
+        // Debounce para redraw e operações pesadas
+        let _redrawTimer = null;
+        function requestRedraw() {
+            if (_redrawTimer) cancelAnimationFrame(_redrawTimer);
+            _redrawTimer = requestAnimationFrame(() => {
+                redrawCanvas();
+            });
+        }
         const MAX_FILE_SIZE_KB = 500;
 
         // --- Seletores DOM ---
@@ -1107,7 +1278,7 @@
         });
         uploadArea.addEventListener('drop', handleDrop, false);
 
-        document.getElementById('fill-mode-controls').addEventListener('click', (e) => handleControlClick(e, 'mode', (newMode) => {
+        document.getElementById('fill-mode-controls').addEventListener('click', (e) => handleControlClick(e, 'data-mode', (newMode) => {
             updateActiveImageProp('fillMode', newMode);
             redrawCanvas();
             updateUI();
@@ -1384,6 +1555,20 @@
             redrawCanvas();
         });
 
+        // Botão "Cores Padrão" dos badges
+        const resetBadgeColorsBtn = document.getElementById('reset-badge-colors-btn');
+        if (resetBadgeColorsBtn) {
+            resetBadgeColorsBtn.addEventListener('click', () => {
+                const defaultColor = doramaBadgeColorPicker && doramaBadgeColorPicker.defaultValue ? doramaBadgeColorPicker.defaultValue : '#FF0000';
+                const activeTypes = Object.keys(doramaElements).filter(type => doramaElements[type] !== null);
+                activeTypes.forEach(type => {
+                    doramaBadgeColors[type] = defaultColor;
+                });
+                if (doramaBadgeColorPicker) doramaBadgeColorPicker.value = defaultColor;
+                redrawCanvas();
+            });
+        }
+
         // Atalhos de teclado
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey || e.metaKey) {
@@ -1453,7 +1638,20 @@
                 btn.classList.toggle('btn-secondary', !isSelected);
             });
             
-            redrawCanvas();
+            requestRedraw();
+        }
+
+        // Delegação de eventos para botões do painel de elementos (corrige onclicks que quebraram)
+        const elementsPanel = document.getElementById('elements-panel');
+        if (elementsPanel) {
+            elementsPanel.addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-dorama]');
+                if (!btn) return;
+                const type = btn.getAttribute('data-dorama');
+                toggleDoramaElement(type);
+                // Atualiza estado visual
+                btn.classList.toggle('active', doramaElements[type] !== null);
+            });
         }
 
         function initializeHeadlineButtons() {
@@ -1523,16 +1721,20 @@
                         playButtonY: 50,
                         imageScale: 100,
                         imageX: 0,
-                        imageY: 0
+                        imageY: 0,
+                        selectedFormat: 'jpeg',
+                        quality: 85
                     };
                     
                     uploadedImages.push(newImage);
                     
                     filesToLoad--;
                     if (filesToLoad === 0) {
-                        if (uploadedImages.length > 0) {
-                            selectImage(uploadedImages[0].id);
+                        if (activeImageId === null && uploadedImages.length > 0) {
+                            // Primeira carga: selecione a última imagem adicionada
+                            selectImage(uploadedImages[uploadedImages.length - 1].id);
                         } else {
+                            // Já havia uma imagem ativa: apenas atualize a galeria
                             renderGallery();
                         }
                     }
@@ -1571,6 +1773,81 @@
                 itemContainer.appendChild(nameEl);
                 galleryContainer.appendChild(itemContainer);
             });
+        }
+        
+        // Análise básica de cores (fallback leve para evitar travar carregamento)
+        async function analyzeImageColors(img, quick = true) {
+            try {
+                const sampleW = 120;
+                const aspect = img.width / img.height;
+                const w = sampleW;
+                const h = Math.max(1, Math.round(sampleW / (aspect || 1)));
+                const canv = document.createElement('canvas');
+                const cctx = canv.getContext('2d');
+                canv.width = w;
+                canv.height = h;
+                cctx.drawImage(img, 0, 0, w, h);
+                const data = cctx.getImageData(0, 0, w, h).data;
+
+                let rSum = 0, gSum = 0, bSum = 0, n = 0;
+                let rTop = 0, gTop = 0, bTop = 0, nTop = 0;
+                let rBot = 0, gBot = 0, bBot = 0, nBot = 0;
+                const quantize = (v) => Math.min(255, Math.max(0, Math.round(v / 16) * 16));
+                const paletteMap = new Map();
+
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const idx = (y * w + x) * 4;
+                        const r = data[idx];
+                        const g = data[idx + 1];
+                        const b = data[idx + 2];
+                        rSum += r; gSum += g; bSum += b; n++;
+                        if (y < h / 3) { rTop += r; gTop += g; bTop += b; nTop++; }
+                        if (y >= (2 * h) / 3) { rBot += r; gBot += g; bBot += b; nBot++; }
+                        const qr = quantize(r), qg = quantize(g), qb = quantize(b);
+                        const key = `${qr},${qg},${qb}`;
+                        paletteMap.set(key, (paletteMap.get(key) || 0) + 1);
+                    }
+                }
+
+                const avg = [Math.round(rSum / n), Math.round(gSum / n), Math.round(bSum / n)];
+                const top = nTop ? [Math.round(rTop / nTop), Math.round(gTop / nTop), Math.round(bTop / nTop)] : avg;
+                const bottom = nBot ? [Math.round(rBot / nBot), Math.round(gBot / nBot), Math.round(bBot / nBot)] : avg;
+
+                // Top N cores mais frequentes
+                const palette = Array.from(paletteMap.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 8)
+                    .map(([k]) => k.split(',').map(v => parseInt(v, 10)));
+
+                return {
+                    dominant: avg,
+                    top,
+                    bottom,
+                    palette
+                };
+            } catch (err) {
+                // Fallback defensivo
+                return {
+                    dominant: [40, 40, 40],
+                    top: [40, 40, 40],
+                    bottom: [40, 40, 40],
+                    palette: [[40, 40, 40]]
+                };
+            }
+        }
+
+        // Análise básica de composição (fallback leve)
+        async function analyzeImageComposition(img) {
+            // Heurística simples: usa proporção da imagem como "aspectRatio do sujeito"
+            // e assume área central ocupando ~45%.
+            const aspect = img.width && img.height ? (img.width / img.height) : 1;
+            return {
+                subjectBox: {
+                    areaRatio: 0.45,
+                    aspectRatio: aspect
+                }
+            };
         }
 
         async function selectImage(id) {
@@ -1725,13 +2002,15 @@
                             <label for="blur-amount-slider">Intensidade do Desfoque</label>
                             <span id="blur-amount-value">${activeImage.blurAmount}px</span>
                         </div>
-                        <input type="range" id="blur-amount-slider" min="10" max="100" value="${activeImage.blurAmount}">
+                        <input type="range" id="blur-amount-slider" min="10" max="120" value="${activeImage.blurAmount}">
                     </div>
                 `;
                 const blurSlider = document.getElementById('blur-amount-slider');
+                const blurValue = document.getElementById('blur-amount-value');
                 blurSlider.addEventListener('input', (e) => {
-                    updateActiveImageProp('blurAmount', parseInt(e.target.value));
-                    document.getElementById('blur-amount-value').textContent = `${e.target.value}px`;
+                    const val = parseInt(e.target.value);
+                    blurValue.textContent = `${val}px`;
+                    updateActiveImageProp('blurAmount', val);
                     redrawCanvas();
                 });
             } else if (activeImage.fillMode === 'solid') {
@@ -1746,153 +2025,35 @@
                     updateActiveImageProp('solidFillColor', e.target.value);
                     redrawCanvas();
                 });
+            } else if (activeImage.fillMode === 'smart') {
+                const resolved = activeImage.smartFillCache && activeImage.smartFillCache.mode ? activeImage.smartFillCache.mode : 'calculando...';
+                fillModeOptionsContainer.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                        <span style="font-size:0.9rem; color: var(--text-secondary);">Modo escolhido: <strong>${resolved}</strong></span>
+                        <button id="recompute-smart-fill" class="btn btn-secondary">Recalcular</button>
+                    </div>
+                `;
+                const recomputeBtn = document.getElementById('recompute-smart-fill');
+                recomputeBtn.addEventListener('click', () => {
+                    if (activeImage.smartFillCache) activeImage.smartFillCache = null;
+                    redrawCanvas();
+                    updateUI();
+                });
             }
         }
 
         function handleControlClick(e, dataAttribute, callback, buttonClass = 'control-btn') {
             const button = e.target.closest(`.${buttonClass}`);
-            if (button) {
-                const value = button.dataset[dataAttribute];
-                if (value !== undefined) {
-                    callback(value);
-                }
+            if (!button) return;
+            const value = button.getAttribute(dataAttribute);
+            // Alterna estado visual: remove 'active' dos irmãos dentro do mesmo container
+            const container = button.parentElement;
+            if (container) {
+                const peers = container.querySelectorAll(`.${buttonClass}`);
+                peers.forEach(b => b.classList.remove('active'));
             }
-        }
-
-        async function analyzeImageColors(img, full = false) {
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            const analysisSize = 100;
-            tempCanvas.width = analysisSize;
-            tempCanvas.height = analysisSize;
-            tempCtx.drawImage(img, 0, 0, analysisSize, analysisSize);
-            
-            const data = full 
-                ? tempCtx.getImageData(0, 0, analysisSize, analysisSize).data
-                : tempCtx.getImageData(0, analysisSize * 0.8, analysisSize, analysisSize * 0.2).data;
-
-            const colorMap = {};
-            for (let i = 0; i < data.length; i += 4) {
-                let r = data[i];
-                let g = data[i+1];
-                let b = data[i+2];
-                let key = `${Math.round(r/10)*10},${Math.round(g/10)*10},${Math.round(b/10)*10}`;
-                colorMap[key] = (colorMap[key] || 0) + 1;
-            }
-
-            const sortedColors = Object.keys(colorMap).sort((a, b) => colorMap[b] - colorMap[a]);
-            
-            return {
-                top: sortedColors[0] ? sortedColors[0].split(',').map(Number) : [0,0,0],
-                bottom: sortedColors[1] ? sortedColors[1].split(',').map(Number) : (sortedColors[0] ? sortedColors[0].split(',').map(Number) : [0,0,0])
-            };
-        }
-
-        async function analyzeImageComposition(img) {
-            const tempCanvas = document.createElement('canvas');
-            const size = 100;
-            tempCanvas.width = size;
-            tempCanvas.height = size;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.drawImage(img, 0, 0, size, size);
-
-            const zones = [
-                { name: 'topo-esquerda', rect: [0, 0, size/2, size/3], pos: { x: 25, y: 15 } },
-                { name: 'topo-direita', rect: [size/2, 0, size/2, size/3], pos: { x: 75, y: 15 } },
-                { name: 'meio-esquerda', rect: [0, size/3, size/2, size/3], pos: { x: 25, y: 50 } },
-                { name: 'meio-direita', rect: [size/2, size/3, size/2, size/3], pos: { x: 75, y: 50 } },
-                { name: 'baixo-esquerda', rect: [0, size/1.5, size/2, size/3], pos: { x: 25, y: 85 } },
-                { name: 'baixo-direita', rect: [size/2, size/1.5, size/2, size/3], pos: { x: 75, y: 85 } },
-            ];
-
-            const zoneScores = zones.map(zone => {
-                const [x, y, w, h] = zone.rect;
-                const imageData = tempCtx.getImageData(x, y, w, h).data;
-                let lumaSum = 0;
-                const lumaValues = [];
-                for (let i = 0; i < imageData.length; i += 4) {
-                    const luma = 0.2126 * imageData[i] + 0.7152 * imageData[i+1] + 0.0722 * imageData[i+2];
-                    lumaValues.push(luma);
-                    lumaSum += luma;
-                }
-                const mean = lumaSum / lumaValues.length;
-                const stdDev = Math.sqrt(lumaValues.map(l => (l - mean) ** 2).reduce((a, b) => a + b) / lumaValues.length);
-                return { zone: zone.pos, score: stdDev };
-            });
-
-            zoneScores.sort((a, b) => a.score - b.score);
-            return zoneScores;
-        }
-
-        function redrawCanvas(imageToDraw) {
-            const activeImage = imageToDraw || uploadedImages.find(img => img.id === activeImageId);
-
-            if (!activeImage || !activeImage.imageObj) {
-                ctx.fillStyle = '#1a1a2e';
-                ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-                return;
-            }
-
-            ctx.clearRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-            
-            drawBackground(activeImage);
-
-            ctx.save();
-            const activeFilter = FILTERS[activeImage.filter]?.value || '';
-            const manualAdjustments = `brightness(${activeImage.brightness}%) contrast(${activeImage.contrast}%) saturate(${activeImage.saturate}%)`;
-            ctx.filter = `${activeFilter} ${manualAdjustments}`.trim();
-
-            const canvasAspectRatio = TARGET_WIDTH / TARGET_HEIGHT;
-            const imgAspectRatio = activeImage.imageObj.width / activeImage.imageObj.height;
-            let drawWidth, drawHeight, x, y;
-
-            if (canvasAspectRatio > imgAspectRatio) {
-                drawHeight = TARGET_HEIGHT;
-                drawWidth = drawHeight * imgAspectRatio;
-                x = (TARGET_WIDTH - drawWidth) / 2;
-                y = 0;
-            } else {
-                drawWidth = TARGET_WIDTH;
-                drawHeight = drawWidth / imgAspectRatio;
-                x = 0;
-                y = (TARGET_HEIGHT - drawHeight) / 2;
-            }
-            
-            // Aplicar transformações manuais
-            const scale = (activeImage.imageScale || 100) / 100;
-            const scaledWidth = drawWidth * scale;
-            const scaledHeight = drawHeight * scale;
-            const finalX = x + (drawWidth - scaledWidth) / 2 + (activeImage.imageX || 0);
-            const finalY = y + (drawHeight - scaledHeight) / 2 + (activeImage.imageY || 0);
-            
-            ctx.drawImage(activeImage.imageObj, finalX, finalY, scaledWidth, scaledHeight);
-            
-            ctx.restore();
-
-            drawLogoOverlay(activeImage);
-            drawTextElements(activeImage);
-            drawDoramaElements(activeImage);
-
-            if (activeImage.selectedPlayButton !== 'none') drawPlayButton(activeImage);
-
-            if (isDragging) {
-                ctx.save();
-                ctx.strokeStyle = '#ff0000';
-                ctx.lineWidth = 2;
-                if (snapStatus.horizontal) {
-                    ctx.beginPath();
-                    ctx.moveTo(0, TARGET_HEIGHT / 2);
-                    ctx.lineTo(TARGET_WIDTH, TARGET_HEIGHT / 2);
-                    ctx.stroke();
-                }
-                if (snapStatus.vertical) {
-                    ctx.beginPath();
-                    ctx.moveTo(TARGET_WIDTH / 2, 0);
-                    ctx.lineTo(TARGET_WIDTH / 2, TARGET_HEIGHT);
-                    ctx.stroke();
-                }
-                ctx.restore();
-            }
+            button.classList.add('active');
+            if (typeof callback === 'function') callback(value, button);
         }
 
         function drawBackground(image) {
@@ -1913,79 +2074,284 @@
                 bgY = (TARGET_HEIGHT - bgHeight) / 2;
             }
 
-            switch (image.fillMode) {
-                case 'blur-pro':
-                    ctx.save();
-                    ctx.drawImage(img, bgX, bgY, bgWidth, bgHeight);
-                    ctx.filter = `blur(${image.blurAmount}px)`;
-                    ctx.drawImage(outputCanvas, 0, 0, TARGET_WIDTH, TARGET_HEIGHT, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-                    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-                    ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-                    ctx.restore();
-                    break;
-                case 'stretch':
-                    let mainDrawWidth, mainDrawHeight, mainX, mainY;
-                    if (canvasAspectRatio > imgAspectRatio) {
-                        mainDrawHeight = TARGET_HEIGHT;
-                        mainDrawWidth = mainDrawHeight * imgAspectRatio;
-                        mainX = (TARGET_WIDTH - mainDrawWidth) / 2;
-                        mainY = 0;
-                    } else {
-                        mainDrawWidth = TARGET_WIDTH;
-                        mainDrawHeight = mainDrawWidth / imgAspectRatio;
-                        mainX = 0;
-                        mainY = (TARGET_HEIGHT - mainDrawHeight) / 2;
-                    }
+            // Preparar filtros compostos para modos de preenchimento
+            const presetFilter = FILTERS[image.filter] ? FILTERS[image.filter].value : '';
+            const brightness = `brightness(${(image.brightness || 100) / 100})`;
+            const contrast = `contrast(${(image.contrast || 100) / 100})`;
+            const saturate = `saturate(${(image.saturate || 100) / 100})`;
+            const composedFilter = [presetFilter, brightness, contrast, saturate].filter(Boolean).join(' ').trim();
 
-                    if (mainY > 0) {
-                        ctx.drawImage(img, 0, 0, img.width, 1, 0, 0, TARGET_WIDTH, mainY + 1);
-                        ctx.drawImage(img, 0, img.height - 1, img.width, 1, 0, mainY + mainDrawHeight, TARGET_WIDTH, TARGET_HEIGHT - (mainY + mainDrawHeight));
-                    } else if (mainX > 0) {
-                        ctx.drawImage(img, 0, 0, 1, img.height, 0, 0, mainX + 1, TARGET_HEIGHT);
-                        ctx.drawImage(img, img.width - 1, 0, 1, img.height, mainX + mainDrawWidth, 0, TARGET_WIDTH - (mainX + mainDrawWidth), TARGET_HEIGHT);
-                    }
-                    ctx.save();
-                    ctx.filter = 'blur(10px)';
-                    ctx.drawImage(outputCanvas, 0, 0, TARGET_WIDTH, TARGET_HEIGHT, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-                    ctx.restore();
-                    break;
-                case 'duotone':
-                    const duotoneGrad = ctx.createLinearGradient(0, 0, 0, TARGET_HEIGHT);
-                    const topColor = `rgb(${image.imageColors.top.join(',')})`;
-                    const bottomColor = `rgb(${image.imageColors.bottom.join(',')})`;
-                    duotoneGrad.addColorStop(0, topColor);
-                    duotoneGrad.addColorStop(1, bottomColor);
-                    ctx.fillStyle = duotoneGrad;
-                    ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-                    
-                    ctx.save();
-                    ctx.globalCompositeOperation = 'luminosity';
-                    ctx.drawImage(img, bgX, bgY, bgWidth, bgHeight);
-                    ctx.restore();
-                    break;
-                case 'mosaic':
-                    ctx.save();
-                    const mosaicSize = 16;
-                    ctx.imageSmoothingEnabled = false;
-                    ctx.drawImage(img, 0, 0, mosaicSize, mosaicSize * (TARGET_HEIGHT / TARGET_WIDTH));
-                    ctx.drawImage(outputCanvas, 0, 0, mosaicSize, mosaicSize * (TARGET_HEIGHT / TARGET_WIDTH), 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-                    ctx.fillStyle = 'rgba(0,0,0,0.1)';
-                    ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-                    ctx.restore();
-                    break;
-                case 'gradient':
-                    const g = ctx.createLinearGradient(0, 0, 0, TARGET_HEIGHT);
-                    g.addColorStop(0, `rgb(${image.imageColors.top.join(',')})`);
-                    g.addColorStop(1, `rgb(${image.imageColors.bottom.join(',')})`);
-                    ctx.fillStyle = g;
-                    ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-                    break;
-                case 'solid':
-                    ctx.fillStyle = image.solidFillColor;
-                    ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-                    break;
+            switch (image.fillMode) {
+        case 'blur-pro':
+            // Desenha fundo desfocado nas bordas, mantendo área central para imagem nítida
+            ctx.save();
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            const blurFilter = `blur(${image.blurAmount || 40}px)`;
+            ctx.filter = composedFilter ? `${blurFilter} ${composedFilter}` : blurFilter;
+            ctx.drawImage(img, bgX, bgY, bgWidth, bgHeight);
+            ctx.restore();
+            break;
+        case 'edge-extend':
+            // Preenchimento suave usando blur leve nas bordas
+            ctx.save();
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            
+            // Usar blur muito sutil (15px) para preenchimento suave
+            const edgeBlur = `blur(15px)`;
+            ctx.filter = composedFilter ? `${edgeBlur} ${composedFilter}` : edgeBlur;
+            ctx.drawImage(img, bgX, bgY, bgWidth, bgHeight);
+            
+            ctx.restore();
+            break;
+        case 'stretch':
+            // Estica a imagem para preencher todo o canvas
+            ctx.save();
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            if (composedFilter) ctx.filter = composedFilter;
+            ctx.drawImage(img, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+            ctx.restore();
+            break;
+        case 'duotone':
+            // Cria efeito duotone usando as cores da imagem
+            if (image.imageColors && image.imageColors.dominant) {
+                const [r, g, b] = image.imageColors.dominant;
+                const brightness = (r + g + b) / 3;
+                const shadowColor = brightness > 128 ? '#000000' : '#FFFFFF';
+                const highlightColor = `rgb(${r}, ${g}, ${b})`;
+                
+                ctx.save();
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                if (composedFilter) ctx.filter = composedFilter;
+                ctx.drawImage(img, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+                ctx.globalCompositeOperation = 'multiply';
+                ctx.fillStyle = shadowColor;
+                ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+                ctx.globalCompositeOperation = 'screen';
+                ctx.fillStyle = highlightColor;
+                ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+                ctx.restore();
+            } else {
+                // Fallback para stretch se não houver cores analisadas
+                ctx.save();
+                if (composedFilter) ctx.filter = composedFilter;
+                ctx.drawImage(img, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+                ctx.restore();
+            }
+            break;
+        case 'mosaic':
+            // Cria efeito mosaico repetindo a imagem em escala reduzida
+            const tileSize = Math.min(TARGET_WIDTH, TARGET_HEIGHT) / 8;
+            const tilesX = Math.ceil(TARGET_WIDTH / tileSize);
+            const tilesY = Math.ceil(TARGET_HEIGHT / tileSize);
+            
+            ctx.save();
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            if (composedFilter) ctx.filter = composedFilter;
+            ctx.globalAlpha = 0.3;
+            for (let x = 0; x < tilesX; x++) {
+                for (let y = 0; y < tilesY; y++) {
+                    ctx.drawImage(img, x * tileSize, y * tileSize, tileSize, tileSize);
+                }
+            }
+            ctx.restore();
+            break;
+        case 'gradient':
+            const g = ctx.createLinearGradient(0, 0, 0, TARGET_HEIGHT);
+            g.addColorStop(0, `rgb(${image.imageColors.top.join(',')})`);
+            g.addColorStop(1, `rgb(${image.imageColors.bottom.join(',')})`);
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+            break;
+        case 'solid':
+            ctx.fillStyle = image.solidFillColor;
+            ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+            break;
+        case 'smart': {
+            // Resolver melhor modo via heurística com cache
+            const resolved = computeSmartFill(image);
+            // Desenhar usando o modo resolvido sem alterar estado permanente do UI
+            const original = image.fillMode;
+            image.fillMode = resolved.mode;
+            // Aplicar parâmetros resolvidos temporariamente
+            const saved = { blurAmount: image.blurAmount, solidFillColor: image.solidFillColor };
+            if (resolved.params) {
+                if (typeof resolved.params.blurAmount === 'number') image.blurAmount = resolved.params.blurAmount;
+                if (typeof resolved.params.solidFillColor === 'string') image.solidFillColor = resolved.params.solidFillColor;
+            }
+            // Chamada recursiva controlada
+            drawBackground(image);
+            // Restaurar estado
+            image.fillMode = original;
+            image.blurAmount = saved.blurAmount;
+            image.solidFillColor = saved.solidFillColor;
+            break;
+        }
             }
         }
+
+// Heurística para escolher o melhor preenchimento de borda
+function computeSmartFill(image) {
+    // Cache: refaz apenas quando mudar dimensões ou cores/composição
+    const version = JSON.stringify({
+        w: TARGET_WIDTH,
+        h: TARGET_HEIGHT,
+        colors: image.imageColors || null,
+        comp: image.composition || null
+    });
+    if (image.smartFillCache && image.smartFillCache.version === version) {
+        return image.smartFillCache;
+    }
+
+    const colors = image.imageColors || {};
+    const dominant = colors.dominant || [40, 40, 40];
+    const top = colors.top || dominant;
+    const bottom = colors.bottom || dominant;
+
+    // Sinais simples de decisão
+    const paletteSize = Array.isArray(colors.palette) ? colors.palette.length : 0;
+    const comp = image.composition || {};
+    const subject = comp.subjectBox || {};
+    const subjectArea = typeof subject.areaRatio === 'number' ? subject.areaRatio : null; // 0..1
+    const subjectNarrow = typeof subject.aspectRatio === 'number' ? (subject.aspectRatio < 0.6 || subject.aspectRatio > 1.8) : false;
+
+    // Heurísticas básicas
+    let mode = 'blur-pro';
+    let params = {};
+
+    // 1) Se paleta pequena ou alto contraste → duotone/gradient
+    if (paletteSize && paletteSize <= 3) {
+        mode = 'duotone';
+    } else if (paletteSize && paletteSize <= 5) {
+        mode = 'gradient';
+    }
+
+    // 2) Se sujeito ocupa pouco espaço ou é estreito → stretch ajuda a preencher
+    if ((subjectArea !== null && subjectArea < 0.25) || subjectNarrow) {
+        mode = 'stretch';
+    }
+
+    // 3) Se imagem muito detalhada (supor paleta grande) → blur-pro mais forte
+    if (paletteSize && paletteSize > 6) {
+        mode = 'blur-pro';
+        params.blurAmount = Math.min(80, Math.max(30, Math.round(0.06 * Math.max(TARGET_WIDTH, TARGET_HEIGHT))));
+    }
+
+    // 4) Fallback: se nada definido claramente, usar gradient com cores topo/base ou blur suave
+    if (!mode) mode = 'gradient';
+
+    // Parâmetros auxiliares
+    if (mode === 'solid') {
+        // Usar cor sólida aproximada dominante
+        const [r, g, b] = dominant;
+        params.solidFillColor = `#${[r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+    }
+
+    const result = { mode, params, version };
+    image.smartFillCache = result;
+    return result;
+}
+        
+
+        // Desenha toda a composição no canvas
+        // Pode ser chamado como redrawCanvas() ou redrawCanvas(image)
+        function redrawCanvas(targetImage = null) {
+            // Resolver imagem ativa
+            const image = targetImage || uploadedImages.find(img => img.id === activeImageId);
+
+            // Limpar canvas
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.globalAlpha = 1;
+            ctx.filter = 'none';
+            ctx.clearRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+            ctx.restore();
+
+            if (!image || !image.imageObj) {
+                // Nada a desenhar além do fundo neutro
+                return;
+            }
+
+            // 1) Fundo de preenchimento (bordas)
+            drawBackground(image);
+
+            // 2) Imagem principal com filtros e transformações (blur-pro permite imagem nítida por cima)
+            if (!['stretch', 'duotone', 'mosaic'].includes(image.fillMode)) {
+                const img = image.imageObj;
+                const imgAspectRatio = img.width / img.height;
+                const canvasAspectRatio = TARGET_WIDTH / TARGET_HEIGHT;
+                
+                let mainW, mainH, mainX, mainY;
+                
+                // Para modos de preenchimento: imagem deve preencher a largura total
+                if (['blur-pro', 'edge-extend', 'gradient', 'solid', 'smart'].includes(image.fillMode)) {
+                    mainW = TARGET_WIDTH;
+                    mainH = TARGET_WIDTH / imgAspectRatio;
+                    mainX = 0;
+                    mainY = (TARGET_HEIGHT - mainH) / 2;
+                } else {
+                    // Para outros modos: usar escala e posicionamento customizável
+                    const scale = (image.imageScale || 100) / 100;
+                    mainW = img.width * scale;
+                    mainH = img.height * scale;
+                    
+                    // Interpretação: imageX/Y são deslocamentos em px a partir do centro do canvas
+                    const centerX = TARGET_WIDTH / 2 + (image.imageX || 0);
+                    const centerY = TARGET_HEIGHT / 2 + (image.imageY || 0);
+                    mainX = centerX - mainW / 2;
+                    mainY = centerY - mainH / 2;
+                }
+
+                // Monta filtro composto (preset + ajustes manuais)
+                const presetFilter = FILTERS[image.filter] ? FILTERS[image.filter].value : '';
+                const brightness = `brightness(${(image.brightness || 100) / 100})`;
+                const contrast = `contrast(${(image.contrast || 100) / 100})`;
+                const saturate = `saturate(${(image.saturate || 100) / 100})`;
+                const composedFilter = [presetFilter, brightness, contrast, saturate].filter(Boolean).join(' ').trim();
+
+                ctx.save();
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                if (composedFilter) ctx.filter = composedFilter;
+                ctx.drawImage(img, mainX, mainY, mainW, mainH);
+                ctx.restore();
+            }
+
+            // 3) Overlays: texto, logotipo, botão de play e badges de dorama
+            drawTextElements(image);
+            drawLogoOverlay(image);
+            drawPlayButton(image);
+            drawDoramaElements(image);
+
+            // 4) Guias de snap (se ativo durante drag)
+            if (snapStatus && (snapStatus.horizontal || snapStatus.vertical)) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(0, 200, 120, 0.6)';
+                ctx.lineWidth = 2;
+                if (snapStatus.horizontal) {
+                    const y = TARGET_HEIGHT / 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(TARGET_WIDTH, y);
+                    ctx.stroke();
+                }
+                if (snapStatus.vertical) {
+                    const x = TARGET_WIDTH / 2;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, TARGET_HEIGHT);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+        }
+        
 
         function wrapText(context, text, maxWidth) {
             const words = text.split(' ');
@@ -3059,8 +3425,8 @@
             showNotification('Processamento em lote em desenvolvimento...', 'success');
         }
 
-        // Função global para adicionar elementos de doramas
-        window.addDoramaElement = function(type) {
+        // Função para adicionar/remover elementos de doramas (chamada por eventos)
+        function toggleDoramaElement(type) {
             const activeImage = uploadedImages.find(img => img.id === activeImageId);
             if (!activeImage) {
                 showNotification('Selecione uma imagem primeiro!', 'error');
@@ -3116,14 +3482,10 @@
                 doramaBadgeColorPicker.value = doramaBadgeColors[type];
             }
             
-            // Atualizar visual dos botões
-            document.querySelectorAll('.controls-grid button').forEach(btn => {
-                if (btn.onclick && btn.onclick.toString().includes('addDoramaElement')) {
-                    const elementType = btn.onclick.toString().match(/addDoramaElement\('(\w+)'\)/);
-                    if (elementType && elementType[1]) {
-                        btn.classList.toggle('active', doramaElements[elementType[1]] !== null);
-                    }
-                }
+            // Atualizar visual dos botões (versão com data-dorama)
+            document.querySelectorAll('button[data-dorama]').forEach(btn => {
+                const t = btn.getAttribute('data-dorama');
+                btn.classList.toggle('active', !!doramaElements[t]);
             });
             
             redrawCanvas();
@@ -3139,8 +3501,343 @@
             if (activeTypes.length > 0) {
                 doramaBadgeColorPicker.value = doramaBadgeColors[activeTypes[0]];
             }
-            redrawCanvas();
+            requestRedraw();
             showNotification('Cores dos badges restauradas!', 'success');
+        }
+
+        // =================================================================
+        // FUNCIONALIDADES DE IA
+        // =================================================================
+        
+        // Configuração de APIs
+        let apiKeys = {
+            removeBg: localStorage.getItem('removeBgApiKey') || '',
+            openai: localStorage.getItem('openaiApiKey') || ''
+        };
+        
+        // Elementos do painel IA
+        const removeBgBtn = document.getElementById('remove-bg-btn');
+        const removeBgStatus = document.getElementById('remove-bg-status');
+        const upscaleBtn = document.getElementById('upscale-btn');
+        const upscaleStatus = document.getElementById('upscale-status');
+        const generateTextBtn = document.getElementById('generate-text-btn');
+        const aiTextPrompt = document.getElementById('ai-text-prompt');
+        const aiTextResults = document.getElementById('ai-text-results');
+        const aiTextLanguage = document.getElementById('text-language');
+        const analyzeBtn = document.getElementById('analyze-composition-btn');
+        const compositionSuggestions = document.getElementById('composition-suggestions');
+        const saveApiKeysBtn = document.getElementById('save-api-keys');
+        
+        // Salvar API Keys
+        if (saveApiKeysBtn) {
+            saveApiKeysBtn.addEventListener('click', () => {
+                const removeBgKey = document.getElementById('removebg-api-key').value;
+                const openaiKey = document.getElementById('openai-api-key').value;
+                
+                if (removeBgKey) {
+                    apiKeys.removeBg = removeBgKey;
+                    localStorage.setItem('removeBgApiKey', removeBgKey);
+                }
+                if (openaiKey) {
+                    apiKeys.openai = openaiKey;
+                    localStorage.setItem('openaiApiKey', openaiKey);
+                }
+                
+                showNotification('API Keys salvas com sucesso!', 'success');
+            });
+        }
+        
+        // 1. REMOVER FUNDO COM REMOVE.BG
+        if (removeBgBtn) {
+            removeBgBtn.addEventListener('click', async () => {
+                const activeImage = uploadedImages.find(img => img.id === activeImageId);
+                if (!activeImage) {
+                    showNotification('Selecione uma imagem primeiro!', 'error');
+                    return;
+                }
+                
+                if (!apiKeys.removeBg) {
+                    showNotification('Configure sua API Key do Remove.bg primeiro!', 'error');
+                    return;
+                }
+                
+                removeBgStatus.textContent = '⏳ Processando...';
+                removeBgBtn.disabled = true;
+                
+                try {
+                    // Converter canvas para blob
+                    const blob = await new Promise(resolve => 
+                        outputCanvas.toBlob(resolve, 'image/png'));
+                    
+                    const formData = new FormData();
+                    formData.append('image_file', blob, 'image.png');
+                    formData.append('size', 'auto');
+                    
+                    const response = await fetch('https://api.remove.bg/v1.0/removebg', {
+                        method: 'POST',
+                        headers: {
+                            'X-Api-Key': apiKeys.removeBg
+                        },
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        const arrayBuffer = await response.arrayBuffer();
+                        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                        const dataURL = `data:image/png;base64,${base64}`;
+                        
+                        // Criar nova imagem sem fundo
+                        const newImage = {
+                            ...activeImage,
+                            id: imageIdCounter++,
+                            name: activeImage.name.replace(/\.\w+$/, '_sem_fundo.png'),
+                            dataURL: dataURL,
+                            imageObj: null
+                        };
+                        
+                        uploadedImages.push(newImage);
+                        selectImage(newImage.id);
+                        
+                        removeBgStatus.textContent = '✅ Fundo removido com sucesso!';
+                        showNotification('Fundo removido! Nova imagem adicionada.', 'success');
+                    } else {
+                        throw new Error('Erro na API');
+                    }
+                } catch (error) {
+                    removeBgStatus.textContent = '❌ Erro ao remover fundo';
+                    showNotification('Erro ao remover fundo: ' + error.message, 'error');
+                } finally {
+                    removeBgBtn.disabled = false;
+                }
+            });
+        }
+        
+        // 2. UPSCALE DE IMAGEM (Simulado com Canvas)
+        if (upscaleBtn) {
+            upscaleBtn.addEventListener('click', async () => {
+                const activeImage = uploadedImages.find(img => img.id === activeImageId);
+                if (!activeImage || !activeImage.imageObj) {
+                    showNotification('Selecione uma imagem primeiro!', 'error');
+                    return;
+                }
+                
+                upscaleStatus.textContent = '⏳ Aumentando resolução...';
+                upscaleBtn.disabled = true;
+                
+                const factor = parseInt(document.getElementById('upscale-factor').value);
+                
+                try {
+                    // Criar canvas temporário maior
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+                    
+                    tempCanvas.width = TARGET_WIDTH * factor;
+                    tempCanvas.height = TARGET_HEIGHT * factor;
+                    
+                    // Configurar qualidade máxima
+                    tempCtx.imageSmoothingEnabled = true;
+                    tempCtx.imageSmoothingQuality = 'high';
+                    
+                    // Desenhar imagem em alta resolução
+                    tempCtx.drawImage(activeImage.imageObj, 0, 0, tempCanvas.width, tempCanvas.height);
+                    
+                    // Converter para dataURL
+                    const dataURL = tempCanvas.toDataURL('image/png', 1.0);
+                    
+                    // Criar nova imagem upscaled
+                    const newImage = {
+                        ...activeImage,
+                        id: imageIdCounter++,
+                        name: activeImage.name.replace(/\.\w+$/, `_${factor}x.png`),
+                        dataURL: dataURL,
+                        imageObj: null
+                    };
+                    
+                    uploadedImages.push(newImage);
+                    selectImage(newImage.id);
+                    
+                    upscaleStatus.textContent = `✅ Resolução aumentada ${factor}x!`;
+                    showNotification(`Imagem ampliada ${factor}x com sucesso!`, 'success');
+                } catch (error) {
+                    upscaleStatus.textContent = '❌ Erro no upscale';
+                    showNotification('Erro ao ampliar imagem: ' + error.message, 'error');
+                } finally {
+                    upscaleBtn.disabled = false;
+                }
+            });
+        }
+        
+        // 3. GERAR TEXTO CRIATIVO COM OPENAI
+        if (generateTextBtn) {
+            generateTextBtn.addEventListener('click', async () => {
+                const prompt = aiTextPrompt.value.trim();
+                if (!prompt) {
+                    showNotification('Digite um prompt para gerar texto!', 'error');
+                    return;
+                }
+                
+                if (!apiKeys.openai) {
+                    // Fallback multilíngue focado em Doramas
+                    const style = document.getElementById('text-style').value;
+                    const lang = aiTextLanguage ? aiTextLanguage.value : 'en';
+                    const fallbackTexts = {
+                        en: {
+                            romantic: ["LOVE BEYOND FATE","WHEN HEARTS BLOOM","MY SWEET FIRST LOVE","STARS THAT UNITE US"],
+                            dramatic: ["AUTUMN TEARS","THE PRICE OF TRUTH","DANGEROUS SECRETS","THE LAST PROMISE"],
+                            comedy: ["MY BOSS IS A DISASTER!","LOVE CONFUSIONS","SINGLE LIFE","LAUGHING OUT LOUD"],
+                            thriller: ["SHADOWS OF THE PAST","THE INVISIBLE STALKER","SILENT REVENGE","CRIMINAL MIND"],
+                            viral: ["YOU WON'T BELIEVE IT!","WHAT HE DID SHOCKED EVERYONE","BOMBSHELL REVELATION","TRY NOT TO CRY"]
+                        },
+                        es: {
+                            romantic: ["AMOR MÁS ALLÁ DEL DESTINO","CUANDO FLORECE EL CORAZÓN","MI DULCE PRIMER AMOR","ESTRELLAS QUE NOS UNEN"],
+                            dramatic: ["LÁGRIMAS DE OTOÑO","EL PRECIO DE LA VERDAD","SECRETOS PELIGROSOS","LA ÚLTIMA PROMESA"],
+                            comedy: ["¡MI JEFE ES UN DESASTRE!","CONFUSIONES DEL AMOR","VIDA DE SOLTERO","RIENDO A CARCAJADAS"],
+                            thriller: ["SOMBRAS DEL PASADO","EL ACOSADOR INVISIBLE","VENGANZA SILENCIOSA","MENTE CRIMINAL"],
+                            viral: ["¡NO LO VAS A CREER!","LO QUE HIZO SORPRENDIÓ A TODOS","REVELACIÓN BOMBA","IMPOSIBLE NO LLORAR"]
+                        }
+                    };
+                    const texts = (fallbackTexts[lang] && fallbackTexts[lang][style]) || fallbackTexts.en.romantic;
+                    aiTextResults.innerHTML = '<strong>Sugestões de texto:</strong><br>';
+                    texts.forEach(text => {
+                        const btn = document.createElement('button');
+                        btn.className = 'text-suggestion-btn';
+                        btn.textContent = text;
+                        btn.style.cssText = 'display: block; width: 100%; text-align: left; padding: 0.5rem; margin: 0.25rem 0; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;';
+                        btn.onclick = () => {
+                            updateActiveImageProp('headlineText', text);
+                            requestRedraw();
+                            showNotification('Texto aplicado!', 'success');
+                        };
+                        aiTextResults.appendChild(btn);
+                    });
+                    return;
+                }
+
+                aiTextResults.textContent = '⏳ Gerando textos criativos...';
+                generateTextBtn.disabled = true;
+
+                try {
+                    const style = document.getElementById('text-style').value;
+                    const lang = aiTextLanguage ? aiTextLanguage.value : 'en';
+                    const systemByLang = {
+                        en: `You are an expert at crafting short, punchy titles for K-dramas (Korean TV series). Always keep it focused on Doramas. Style: ${style}. Generate 4 short, impactful options in English only.`,
+                        es: `Eres experto en crear títulos cortos e impactantes para Doramas (series coreanas). Mantén siempre el enfoque en Doramas. Estilo: ${style}. Genera 4 opciones cortas en español.`
+                    };
+                    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKeys.openai}`
+                        },
+                        body: JSON.stringify({
+                            model: 'gpt-3.5-turbo',
+                            messages: [{
+                                role: 'system',
+                                content: systemByLang[lang]
+                            }, {
+                                role: 'user',
+                                content: `${prompt}\nContext: Doramas/K-dramas only. Return plain list (no extra commentary).`
+                            }],
+                            temperature: 0.8,
+                            max_tokens: 100
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    const suggestions = data.choices[0].message.content.split('\n').filter(t => t.trim());
+                    
+                    aiTextResults.innerHTML = '<strong>Textos gerados:</strong><br>';
+                    suggestions.forEach(text => {
+                        const cleanText = text.replace(/^\d+\.?\s*/, '').replace(/^[−–-•]\s*/, '').trim();
+                        const btn = document.createElement('button');
+                        btn.className = 'text-suggestion-btn';
+                        btn.textContent = cleanText;
+                        btn.style.cssText = 'display: block; width: 100%; text-align: left; padding: 0.5rem; margin: 0.25rem 0; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;';
+                        btn.onclick = () => {
+                            updateActiveImageProp('headlineText', cleanText);
+                            requestRedraw();
+                            showNotification('Texto aplicado!', 'success');
+                        };
+                        aiTextResults.appendChild(btn);
+                    });
+                } catch (error) {
+                    aiTextResults.textContent = '❌ Erro ao gerar texto';
+                    showNotification('Erro: ' + error.message, 'error');
+                } finally {
+                    generateTextBtn.disabled = false;
+                }
+            });
+        }
+        
+        // 4. ANÁLISE DE COMPOSIÇÃO
+        if (analyzeBtn) {
+            analyzeBtn.addEventListener('click', () => {
+                const activeImage = uploadedImages.find(img => img.id === activeImageId);
+                if (!activeImage) {
+                    showNotification('Selecione uma imagem primeiro!', 'error');
+                    return;
+                }
+                
+                compositionSuggestions.innerHTML = '<strong>📊 Análise da Composição:</strong><br><br>';
+                
+                // Análise baseada em regras
+                const suggestions = [];
+                
+                // Verificar texto
+                if (activeImage.headlineText === defaultHeadlines[0]) {
+                    suggestions.push('💡 Personalize o texto para maior impacto');
+                }
+                
+                // Verificar contraste
+                if (activeImage.brightness < 80 || activeImage.brightness > 120) {
+                    suggestions.push('🔆 Ajuste o brilho para melhor legibilidade');
+                }
+                
+                // Verificar saturação
+                if (activeImage.saturate < 80) {
+                    suggestions.push('🎨 Aumente a saturação para cores mais vibrantes');
+                }
+                
+                // Verificar elementos
+                if (activeImage.selectedPlayButton === 'none') {
+                    suggestions.push('▶️ Adicione um botão de play para maior engajamento');
+                }
+                
+                // Verificar filtros
+                if (activeImage.filter === 'none') {
+                    suggestions.push('✨ Experimente filtros para criar atmosfera');
+                }
+                
+                // Regra dos terços
+                if (activeImage.headlineY < 30 || activeImage.headlineY > 70) {
+                    suggestions.push('📐 Posicione o texto seguindo a regra dos terços');
+                }
+                
+                // Badges de dorama
+                const hasBadges = Object.values(doramaElements).some(el => el !== null);
+                if (!hasBadges) {
+                    suggestions.push('🏷️ Adicione badges (EP, SUB, HD) para contexto');
+                }
+                
+                if (suggestions.length === 0) {
+                    suggestions.push('✅ Composição bem equilibrada!');
+                    suggestions.push('🎯 Considere testar variações para A/B testing');
+                }
+                
+                suggestions.forEach(sugg => {
+                    const p = document.createElement('p');
+                    p.style.cssText = 'margin: 0.5rem 0; padding: 0.5rem; background: var(--bg-dark); border-radius: 4px;';
+                    p.textContent = sugg;
+                    compositionSuggestions.appendChild(p);
+                });
+                
+                // Score de qualidade
+                const score = Math.max(0, 100 - (suggestions.length - 1) * 15);
+                const scoreEl = document.createElement('div');
+                scoreEl.style.cssText = 'margin-top: 1rem; padding: 0.75rem; background: var(--accent); border-radius: 8px; text-align: center; font-weight: bold;';
+                scoreEl.innerHTML = `🏆 Score de Qualidade: ${score}/100`;
+                compositionSuggestions.appendChild(scoreEl);
+            });
         }
 
         // Inicializar aplicação
